@@ -22,7 +22,7 @@ const sha256hex = async (s) => {
 const HERO = 0, BOT = 1;
 let HERO_SEAT = 0;                 // engine seat of the human at this keyboard
 const SB = 10, BB = 20, STACK = 2000;
-const RATED_HANDS = 40;
+const RATED_HANDS = 20;
 const LEVEL_EPS = { 2: .45, 3: .3, 4: .2, 5: .12, 6: .06, 7: 0 };
 let level = Math.min(7, Math.max(2, +(localStorage.getItem('lp.level') || 7)));
 let rated = localStorage.getItem('lp.rated') === '1';
