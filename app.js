@@ -969,14 +969,14 @@ async function playOnlineHand() {
       act(h, { seat: meSeat, action: a.action, amount: a.amount });
       say(0, a.action + (a.amount ? ' ' + a.amount : ''));
       logLine(`You ${a.action}${a.amount ? ' ' + a.amount : ''}`);
-      await roomSend({ type: 'act', handNo: NET.handNo, action: a.action, amount: a.amount ?? null });
+      await roomSend({ type: 'act', handNo: NET.handNo, sid: NET.sid, action: a.action, amount: a.amount ?? null });
       sChip();
       await afterActOnline(lastStreet, preCommits, viewSeat);
       lastStreet = h.street;
     } else {
       renderOnline(viewSeat);
       caption(`waiting for ${oppName}…`);
-      const m = await nextMsg((x) => x.type === 'act' && x.handNo === NET.handNo && x.from === NET.oppPid, 10 * 60000);
+      const m = await nextMsg((x) => x.type === 'act' && x.sid === NET.sid && x.from === NET.oppPid, 10 * 60000);
       caption('');
       // their engine move must be legal in OUR engine — mutual refereeing
       const L2 = legal(h);
