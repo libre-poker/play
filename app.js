@@ -4,7 +4,7 @@
 // those documents. The live table is the one view that reads the engine
 // directly — everything after the settle reads only the record.
 import {
-  cardName, rankOf, suitOf, RANKS, newHand, legal, act, handName, rngFromSeed, STREETS,
+  cardName, rankOf, suitOf, RANKS, newHand, legal, act, handName, rngFromSeed, STREETS, bestFive,
 } from './engine/poker.js';
 import { ladderDecide, tableMix, setEquityEdges } from './engine/ladder.js';
 import { riverMix, riverEvs } from './engine/river-solver.js';
@@ -27,6 +27,8 @@ let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
 let coachMode = localStorage.getItem('lp.coach') === '1';
+let fourColor = localStorage.getItem('lp.fourc') === '1';
+let commit8 = '';                 // sha256(seed) prefix — the shuffle's promise
 let rating = freshRating();
 try { rating = Object.assign(freshRating(), JSON.parse(localStorage.getItem('lp.rating') || '{}')); } catch { /* fresh */ }
 
@@ -79,7 +81,7 @@ const isRed = (a) => a[1] === 'd' || a[1] === 'h';
 const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
 function cardEl(a) {
   const d = document.createElement('div');
-  d.className = 'card flipin' + (isRed(a) ? ' red' : '');
+  d.className = 'card flipin s-' + a[1] + (isRed(a) ? ' red' : '');
   d.innerHTML = `<div class="cr">${a[0] === 'T' ? '10' : a[0]}<b>${GLYPH[a[1]]}</b></div><div class="cp">${GLYPH[a[1]]}</div>`;
   return d;
 }
@@ -200,7 +202,7 @@ function renderHand(reveal = false) {
     potEl.textContent = collected > 0 ? `Pot ${collected.toLocaleString()}` : '';
     chipStackInto($('#potchips'), collected);
   }
-  $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}${h.phase === 'act' ? ' · ' + STREETS[h.street] : ' · showdown'}`;
+  $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}${h.phase === 'act' ? ' · ' + STREETS[h.street] : ' · showdown'}${commit8 ? ` · ${commit8}` : ''}`;
   const boardEl = $('#board');
   $('#table').classList.toggle('boardout', h.board.length > 0);
   if (boardEl.children.length > h.board.length) boardEl.innerHTML = '';
@@ -478,11 +480,14 @@ async function playHand() {
     button: handNo % 2, sb: SB, bb: BB, seedHex: seed, limit: true,
   });
   const rng = rngFromSeed(await sha256hex(`${seed}|bot`));
+  commit8 = (await sha256hex(seed)).slice(0, 8);
+  $('#tmeta').title = `shuffle committed before the deal: sha256(seed) = ${await sha256hex(seed)} — the seed travels in the hand's document`;
   const cache = {};
   const handGrades = [];
   seats.forEach((s2) => { s2.said.textContent = ''; });
   $('#verdict').textContent = '';
   logLine(`Hand #${handNo} — blinds ${SB}/${BB}`, 'lh2');
+  logLine(`<span class="lm">shuffle committed: ${commit8}…</span>`);
   renderHand(); sCard();
   caption(rated ? `hand ${handNo} of ${RATED_HANDS}` : '');
   await sleep(400);
@@ -564,11 +569,16 @@ async function playHand() {
   seats.forEach((s2) => { s2.said.textContent = ''; });
   renderHand(r.showdown);
   const winSeats = new Set(r.winners.map((x) => x.seat));
-  for (const i of [HERO, BOT]) {
-    seats[i].root.classList.toggle('winner', winSeats.has(i));
-    if (r.showdown) {
+  for (const i of [HERO, BOT]) seats[i].root.classList.toggle('winner', winSeats.has(i));
+  if (r.showdown) {
+    const winCards = new Set();
+    for (const w2 of winSeats) for (const c of bestFive([...h.seats[w2].hole, ...h.board])) winCards.add(c);
+    [...$('#board').children].forEach((el, bi) => el.classList.add(winCards.has(h.board[bi]) ? 'win' : 'dead'));
+    for (const i of [HERO, BOT]) {
       const won = winSeats.has(i);
-      seats[i].cards.querySelectorAll('.card').forEach((c) => c.classList.add(won ? 'win' : 'dead'));
+      [...seats[i].cards.children].forEach((el, ci) => {
+        el.classList.add(won && winCards.has(h.seats[i].hole[ci]) ? 'win' : 'dead');
+      });
     }
   }
   if (r.showdown) {
@@ -693,6 +703,13 @@ $('#b-log').addEventListener('click', () => {
   $('#logdrawer').classList.toggle('open');
   $('#b-log').classList.toggle('on');
 });
+document.body.classList.toggle('fourc', fourColor);
+$('#b-fourc')?.addEventListener('click', () => {
+  fourColor = !fourColor;
+  localStorage.setItem('lp.fourc', fourColor ? '1' : '0');
+  document.body.classList.toggle('fourc', fourColor);
+  $('#b-fourc').classList.toggle('on', fourColor);
+});
 $('#b-help').addEventListener('click', () => $('#m-help').classList.add('open'));
 document.querySelectorAll('.wrap .x').forEach((x) => x.addEventListener('click', () => x.closest('.wrap').classList.remove('open')));
 document.querySelectorAll('.wrap').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); }));
@@ -706,6 +723,7 @@ async function shotMode(name) {
   handNo = 7;
   renderTop();
   const seed = await sha256hex('shot|7');
+  commit8 = (await sha256hex(seed)).slice(0, 8);
   h = newHand({
     seats: [{ name: 'You', stack: 2000 }, { name: `Level ${level}`, stack: 2000 }],
     button: 1, sb: SB, bb: BB, seedHex: seed, limit: true,
@@ -729,10 +747,15 @@ async function shotMode(name) {
   if (h.phase === 'done') {
     renderHand(true);
     const winSeats = new Set(h.result.winners.map((x) => x.seat));
+    const winCards = new Set();
+    for (const w2 of winSeats) for (const c of bestFive([...h.seats[w2].hole, ...h.board])) winCards.add(c);
+    for (const i of [HERO, BOT]) seats[i].root.classList.toggle('winner', winSeats.has(i));
+    [...$('#board').children].forEach((el, bi) => el.classList.add(winCards.has(h.board[bi]) ? 'win' : 'dead'));
     for (const i of [HERO, BOT]) {
-      seats[i].root.classList.toggle('winner', winSeats.has(i));
       const won = winSeats.has(i);
-      seats[i].cards.querySelectorAll('.card').forEach((c) => c.classList.add(won ? 'win' : 'dead'));
+      [...seats[i].cards.children].forEach((el, ci) => {
+        el.classList.add(won && winCards.has(h.seats[i].hole[ci]) ? 'win' : 'dead');
+      });
     }
     const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
     $('#verdict').innerHTML = Object.entries(h.result.evals ?? {}).map(([i, e]) =>

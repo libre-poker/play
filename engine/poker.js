@@ -17,6 +17,26 @@ export const rankOf = (c) => c % 13;          // 0=deuce … 12=ace
 export const suitOf = (c) => (c / 13) | 0;
 export const cardName = (c) => RANKS[rankOf(c)] + SUITS[suitOf(c)];
 
+// The five cards a hand actually plays: argmax of evaluate() over all
+// C(n,5) subsets. Ties resolve to the first maximal subset, which is
+// deterministic for a given input order. Exists so showdowns can light
+// the winning five and transcripts can carry them.
+export function bestFive(cards) {
+  if (cards.length <= 5) return [...cards];
+  let best = null, bestScore = -1;
+  const n = cards.length;
+  for (let a = 0; a < n - 4; a++)
+    for (let b = a + 1; b < n - 3; b++)
+      for (let c = b + 1; c < n - 2; c++)
+        for (let d = c + 1; d < n - 1; d++)
+          for (let e = d + 1; e < n; e++) {
+            const five = [cards[a], cards[b], cards[c], cards[d], cards[e]];
+            const sc = evaluate(five).score;
+            if (sc > bestScore) { bestScore = sc; best = five; }
+          }
+  return best;
+}
+
 // xorshift128 seeded from a 64-hex string — the fleet's shuffle.
 export function rngFromSeed(seedHex) {
   if (!/^[0-9a-f]{64}$/.test(seedHex)) throw new Error('seed must be 64 hex chars');

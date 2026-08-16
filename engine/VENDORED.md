@@ -1,4 +1,4 @@
-# Vendored from libre-poker/engine @ c9a387b
+# Vendored from libre-poker/engine @ engine main (bestFive)
 
 Clean-room rule: repos are standalone. These modules are copied, not
 linked; update by copying from the engine repo and noting the commit
