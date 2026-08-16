@@ -1082,7 +1082,12 @@ async function enterLobby(joinCode) {
     await roomSend({ type: 'hello' });
     const link = `${location.origin}${location.pathname}?join=${NET.room}`;
     netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
-      `<code style="font-size:12px;user-select:all">${link}</code><br>waiting…`);
+      `<code style="font-size:12px;user-select:all">${link}</code> ` +
+      `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>waiting…`);
+    document.getElementById('b-copylink').addEventListener('click', async (e) => {
+      try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
+      catch { e.target.textContent = 'select it manually'; }
+    });
   };
 }
 async function startOnlineGuestLoop() {
