@@ -4,11 +4,12 @@
 // those documents. The live table is the one view that reads the engine
 // directly — everything after the settle reads only the record.
 import {
-  cardName, rankOf, suitOf, RANKS, newHand, legal, act, handName, rngFromSeed, STREETS, bestFive,
+  cardName, rankOf, suitOf, RANKS, newHand, legal, act, handName, rngFromSeed, STREETS, bestFive, evaluate,
 } from './engine/poker.js';
 import { ladderDecide, tableMix, setEquityEdges } from './engine/ladder.js';
 import { riverMix, riverEvs } from './engine/river-solver.js';
 import { glicko2, freshRating, LEVEL_RATING, LEVEL_RD } from './engine/rating.js';
+import { verifyReveal } from './croupier-verify.js';
 
 const $ = (q) => document.querySelector(q);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -19,6 +20,7 @@ const sha256hex = async (s) => {
 
 // ---------------------------------------------------------------- state
 const HERO = 0, BOT = 1;
+let HERO_SEAT = 0;                 // engine seat of the human at this keyboard
 const SB = 10, BB = 20, STACK = 2000;
 const RATED_HANDS = 40;
 const LEVEL_EPS = { 2: .45, 3: .3, 4: .2, 5: .12, 6: .06, 7: 0 };
@@ -247,10 +249,10 @@ const caption = (html) => { $('#caption').innerHTML = html; };
 // ---------------------------------------------------------------- mixes
 function teachMix(L) {
   if (h.street === 3) {
-    const rm = riverMix(h, HERO, table, {});
+    const rm = riverMix(h, HERO_SEAT, table, {});
     if (rm) return { acts: rm.acts, probs: rm.probs, known: true, solved: true };
   }
-  return tableMix(h, HERO, L, table);
+  return tableMix(h, HERO_SEAT, L, table);
 }
 function mixNames(mix, L) {
   return mix.acts.map((ac) => ac === 'k' ? (L.callAmount > 0 ? 'call' : 'check')
@@ -782,6 +784,318 @@ async function shotMode(name) {
   }
 }
 
+// ---------------------------------------------------------------- online
+// Casual heads-up vs a human: the croupier deals (committed shuffle,
+// per-envelope proofs verified right here), a generic room relays the
+// chatter, and both browsers' engines referee each other's legality.
+// Server-dealt, casual only, never rated — the constitution's §6 lane.
+const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
+const myPid = (() => {
+  // per-tab identity (sessionStorage): lets one human test both seats in
+  // two tabs, and a casual pid needs no more permanence than the sitting
+  let p = sessionStorage.getItem('lp.pid');
+  if (!p) { p = [...crypto.getRandomValues(new Uint8Array(8))].map((x) => x.toString(16).padStart(2, '0')).join(''); sessionStorage.setItem('lp.pid', p); }
+  return p;
+})();
+const NET = {
+  on: false, room: null, host: false, oppPid: null,
+  es: null, seq: 0, oppSeq: -1, handNo: 0,
+  sid: null, root: null, token: null, cev: null,
+  reveals: new Map(),          // envelope index -> value (verified)
+  waiters: [],
+};
+const cpost = (path, body, token) => fetch(CROUPIER + path, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
+  body: JSON.stringify(body),
+}).then((r) => r.json());
+function roomSend(msg) {
+  return cpost('/room/send', { room: NET.room, msg: { from: myPid, seq: NET.seq++, ...msg } });
+}
+function netStatus(t) { const el = $('#online-status'); if (el) el.innerHTML = t; }
+
+function openRoomChannel() {
+  const es = new EventSource(`${CROUPIER}/room/events?room=${NET.room}`);
+  NET.es = es;
+  es.onmessage = (e) => {
+    let entry; try { entry = JSON.parse(e.data); } catch { return; }
+    const m = entry.msg;
+    if (!m || m.from === myPid) return;
+    handleRoomMsg(m);
+  };
+  es.onerror = () => { if (NET.on) caption('connection lost — refresh to rejoin'); };
+}
+const netWaiters = [];
+const netInbox = [];
+function nextMsg(pred, ms = 60000) {
+  return new Promise((resolve, reject) => {
+    const i = netInbox.findIndex(pred);
+    if (i >= 0) return resolve(netInbox.splice(i, 1)[0]);
+    netWaiters.push({ pred, resolve });
+    setTimeout(() => reject(new Error('timeout waiting for opponent')), ms);
+  });
+}
+function handleRoomMsg(m) {
+  if (m.type === 'hello' && !NET.oppPid) {
+    NET.oppPid = m.from;
+    roomSend({ type: 'hello2' });
+    if (NET.host) startOnlineMatch();
+    return;
+  }
+  if (m.type === 'hello2' && !NET.oppPid) { NET.oppPid = m.from; return; }
+  for (let i = netWaiters.length - 1; i >= 0; i--) {
+    if (netWaiters[i].pred(m)) {
+      const w = netWaiters[i]; netWaiters.splice(i, 1); w.resolve(m);
+      return;
+    }
+  }
+  netInbox.push(m);
+  if (netInbox.length > 200) netInbox.shift();
+}
+
+// ---- croupier session helpers (per hand)
+function openCroupierChannel() {
+  if (NET.cev) NET.cev.close();
+  NET.reveals = new Map();
+  const es = new EventSource(`${CROUPIER}/events?sid=${NET.sid}&token=${NET.token}`);
+  NET.cev = es;
+  es.onmessage = (e) => {
+    let ev; try { ev = JSON.parse(e.data); } catch { return; }
+    if (ev.ev === 'reveal' && ev.value !== undefined) {
+      if (!verifyReveal(NET.root, ev)) { caption('⚠ PROOF FAILED — the croupier lied; aborting'); NET.on = false; return; }
+      NET.reveals.set(ev.index, ev.value);
+      for (let i = NET.waiters.length - 1; i >= 0; i--) {
+        if (NET.waiters[i].idx.every((k) => NET.reveals.has(k))) {
+          const w = NET.waiters[i]; NET.waiters.splice(i, 1); w.resolve();
+        }
+      }
+    }
+  };
+}
+const consent = (index, to) => cpost('/consent', { sid: NET.sid, op: { kind: 'reveal', index, to } }, NET.token);
+function revealsReady(idx) {
+  return new Promise((resolve) => {
+    if (idx.every((k) => NET.reveals.has(k))) return resolve();
+    NET.waiters.push({ idx, resolve });
+  });
+}
+
+// ---- the online hand
+const mySeatOnline = () => NET.host ? 0 : 1;
+async function playOnlineHand() {
+  NET.handNo++;
+  const meSeat = mySeatOnline(), oppSeat = 1 - meSeat;
+  HERO_SEAT = meSeat;
+  const oppName = 'Guest ' + (NET.oppPid || '').slice(0, 4);
+  // host creates the session; guest claims its token
+  if (NET.host) {
+    const S = await cpost('/create', { n: 52, parties: [myPid, NET.oppPid], openPolicy: 'none', claims: true, meta: { game: 'holdem-hu', hand: NET.handNo } });
+    NET.sid = S.sid; NET.root = S.root;
+    const mine = await cpost('/claim', { sid: S.sid, party: myPid, code: S.claims[myPid] });
+    NET.token = mine.token;
+    await roomSend({ type: 'start', handNo: NET.handNo, sid: S.sid, root: S.root, claim: S.claims[NET.oppPid] });
+  } else {
+    const m = await nextMsg((x) => x.type === 'start' && x.handNo === NET.handNo);
+    NET.sid = m.sid; NET.root = m.root;
+    const mine = await cpost('/claim', { sid: m.sid, party: myPid, code: m.claim });
+    if (!mine.token) { caption('⚠ claim refused — host may be cheating; leaving'); NET.on = false; return; }
+    NET.token = mine.token;
+  }
+  openCroupierChannel();
+  commit8 = NET.root.slice(0, 8);
+
+  // engine as betting referee; cards arrive from the croupier
+  h = newHand({
+    seats: meSeat === 0
+      ? [{ name: 'You', stack: STACK }, { name: oppName, stack: STACK }]
+      : [{ name: oppName, stack: STACK }, { name: 'You', stack: STACK }],
+    button: NET.handNo % 2, sb: SB, bb: BB,
+    seedHex: '00'.repeat(32), limit: true,
+  });
+  // NB: engine seats are absolute (0 host, 1 guest); the DOM maps seat-0 as
+  // "me" — so online rendering uses a view swap:
+  const viewSeat = (engineSeat) => engineSeat === meSeat ? 0 : 1;
+
+  seats.forEach((s2) => { s2.said.textContent = ''; });
+  $('#verdict').textContent = '';
+  logLine(`Hand #${NET.handNo} vs ${oppName} — root ${commit8}…`, 'lh2');
+  caption('dealing…');
+
+  // the deal: both clients consent the standard mapping
+  const dealOps = [[0, NET.host ? myPid : NET.oppPid], [1, NET.host ? myPid : NET.oppPid],
+    [2, NET.host ? NET.oppPid : myPid], [3, NET.host ? NET.oppPid : myPid]];
+  for (const [idx, to] of dealOps) consent(idx, to);
+  const myEnv = meSeat === 0 ? [0, 1] : [2, 3];
+  await revealsReady(myEnv);
+  h.seats[meSeat].hole = myEnv.map((i) => NET.reveals.get(i));
+  renderOnline(viewSeat);
+  sCard();
+
+  let lastStreet = 0;
+  let guard = 0;
+  while (h.phase === 'act' && guard++ < 200 && NET.on) {
+    const L = legal(h);
+    if (L.seat === meSeat) {
+      renderOnline(viewSeat);
+      const a = await heroTurn(L);
+      const preCommits = h.seats.map((x) => x.streetCommit);
+      act(h, { seat: meSeat, action: a.action, amount: a.amount });
+      say(0, a.action + (a.amount ? ' ' + a.amount : ''));
+      logLine(`You ${a.action}${a.amount ? ' ' + a.amount : ''}`);
+      await roomSend({ type: 'act', handNo: NET.handNo, action: a.action, amount: a.amount ?? null });
+      sChip();
+      await afterActOnline(lastStreet, preCommits, viewSeat);
+      lastStreet = h.street;
+    } else {
+      renderOnline(viewSeat);
+      caption(`waiting for ${oppName}…`);
+      const m = await nextMsg((x) => x.type === 'act' && x.handNo === NET.handNo, 10 * 60000);
+      caption('');
+      // their engine move must be legal in OUR engine — mutual refereeing
+      const L2 = legal(h);
+      const legalNames = L2.actions;
+      if (L2.seat !== oppSeat || !legalNames.includes(m.action)) {
+        caption('⚠ illegal action from opponent — hand void');
+        NET.on = false; return;
+      }
+      const preCommits = h.seats.map((x) => x.streetCommit);
+      act(h, { seat: oppSeat, action: m.action, amount: m.amount ?? undefined });
+      say(1, m.action + (m.amount ? ' ' + m.amount : ''));
+      logLine(`${oppName} ${m.action}${m.amount ? ' ' + m.amount : ''}`);
+      sChip();
+      await afterActOnline(lastStreet, preCommits, viewSeat);
+      lastStreet = h.street;
+    }
+  }
+  if (!NET.on) return;
+
+  // settle by hand: no all-ins are possible at these stacks in limit,
+  // so the pot is single and whole
+  const pot = h.seats.reduce((a2, s2) => a2 + s2.handCommit, 0);
+  const folded = h.seats.findIndex((s2) => s2.folded);
+  let winners = [];
+  if (folded >= 0) {
+    winners = [1 - folded];
+  } else {
+    // showdown: both publicize both holes (v1: always show)
+    for (const idx of [0, 1, 2, 3]) consent(idx, 'all');
+    await revealsReady([0, 1, 2, 3]);
+    h.seats[0].hole = [NET.reveals.get(0), NET.reveals.get(1)];
+    h.seats[1].hole = [NET.reveals.get(2), NET.reveals.get(3)];
+    const e0 = evaluate([...h.seats[0].hole, ...h.board]);
+    const e1 = evaluate([...h.seats[1].hole, ...h.board]);
+    winners = e0.score > e1.score ? [0] : e1.score > e0.score ? [1] : [0, 1];
+    renderOnline(viewSeat, true);
+    const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    $('#verdict').innerHTML = [0, 1].map((i) =>
+      `<span class="vtag ${winners.includes(i) ? 'vw' : 'vl'}">${i === meSeat ? 'You' : oppName}: ${cap(handName(i === 0 ? e0 : e1))}</span>`).join('');
+  }
+  const share = Math.floor(pot / winners.length);
+  const myDelta = (winners.includes(meSeat) ? share : 0) - h.seats[meSeat].handCommit;
+  net += myDelta;
+  const potEl = $('#pot');
+  potEl.classList.add('winline');
+  potEl.textContent = winners.map((w) => `${w === meSeat ? 'You win' : oppName + ' wins'} ${share}`).join(' · ');
+  for (const w of winners) seats[viewSeat(w)].root.classList.add('winner');
+  for (const w of winners) logLine(`<span class="lw">${w === meSeat ? 'You win' : oppName + ' wins'} ${share}</span>`);
+  caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
+  renderTop();
+  await new Promise((resolve) => {
+    const bar = $('#actions');
+    bar.innerHTML = '';
+    const bn = document.createElement('button');
+    bn.id = 'b-next'; bn.textContent = 'NEXT HAND';
+    bn.addEventListener('click', () => resolve());
+    bar.appendChild(bn);
+    setTimeout(resolve, folded >= 0 ? 2000 : 3200);
+  });
+  $('#actions').innerHTML = '';
+  potEl.classList.remove('winline');
+  seats.forEach((s2) => s2.root.classList.remove('winner'));
+}
+
+async function afterActOnline(lastStreet, preCommits, viewSeat) {
+  const domPre = mySeatOnline() === 1 ? [preCommits[1], preCommits[0]] : preCommits;
+  if (h.street !== lastStreet && h.phase === 'act') {
+    await sweepBets(domPre);
+    // board envelopes: 4..(4+len-1); consent to all, verify, overwrite dummies
+    const need = Array.from({ length: h.board.length }, (_, k) => 4 + k)
+      .filter((i) => !NET.reveals.has(i));
+    for (const i of need) consent(i, 'all');
+    await revealsReady(Array.from({ length: h.board.length }, (_, k) => 4 + k));
+    for (let k = 0; k < h.board.length; k++) h.board[k] = NET.reveals.get(4 + k);
+    logLine(`<span class="lm">${STREETS[h.street].toUpperCase()}  ${h.board.map((c) => ascii(c)).join(' ')}</span>`);
+    renderOnline(viewSeat);
+  } else if (h.phase !== 'act') {
+    await sweepBets(domPre);
+  }
+}
+
+// online rendering: engine seats -> DOM seats via the view swap; the
+// opponent's dummy hole renders as backs (renderHand shows backs for
+// seat index 1)
+function renderOnline(viewSeat, reveal = false) {
+  // remap: build a shallow view where DOM seat 0 = me
+  const realSeats = h.seats;
+  const me = mySeatOnline();
+  if (me === 1) {
+    h = { ...h, seats: [realSeats[1], realSeats[0]], button: h.button === 1 ? 0 : 1, toAct: h.toAct === -1 ? -1 : 1 - h.toAct };
+    renderHand(reveal);
+    h = { ...h, seats: realSeats, button: h.button === 1 ? 0 : 1, toAct: h.toAct === -1 ? -1 : 1 - h.toAct };
+  } else {
+    renderHand(reveal);
+  }
+}
+
+async function startOnlineMatch() {
+  NET.on = true;
+  matchOpen = false;                      // stop the bot loop after its hand
+  netStatus(`connected — playing`);
+  $('#m-online').classList.remove('open');
+  docs = []; net = 0; handNo = 0;
+  renderTop();
+  caption('opponent connected');
+  while (NET.on) {
+    try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
+  }
+  HERO_SEAT = 0;
+  caption('online match over — <a href="?">back to the bot</a>');
+}
+
+async function enterLobby(joinCode) {
+  $('#m-online').classList.add('open');
+  if (joinCode) {
+    NET.room = joinCode.toUpperCase(); NET.host = false;
+    netStatus(`joining table <b>${NET.room}</b>…`);
+    openRoomChannel();
+    await roomSend({ type: 'hello' });
+    NET.on = true;
+    matchOpen = false;
+    netStatus('waiting for the host to deal…');
+    startOnlineGuestLoop();
+    return;
+  }
+  $('#b-maketable').onclick = async () => {
+    const r = await cpost('/room/create', {});
+    NET.room = r.room; NET.host = true;
+    openRoomChannel();
+    await roomSend({ type: 'hello' });
+    const link = `${location.origin}${location.pathname}?join=${NET.room}`;
+    netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
+      `<code style="font-size:12px;user-select:all">${link}</code><br>waiting…`);
+  };
+}
+async function startOnlineGuestLoop() {
+  $('#m-online').classList.remove('open');
+  docs = []; net = 0; handNo = 0;
+  while (NET.on) {
+    try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
+  }
+  HERO_SEAT = 0;
+  caption('online match over — <a href="?">back to the bot</a>');
+}
+$('#b-online').addEventListener('click', () => enterLobby(null));
+
 // ---------------------------------------------------------------- boot
 (async () => {
   renderTop();
@@ -798,5 +1112,7 @@ async function shotMode(name) {
   }
   const shot = new URLSearchParams(location.search).get('shot');
   if (shot) { shotMode(shot); return; }
+  const join = new URLSearchParams(location.search).get('join');
+  if (join) { enterLobby(join); return; }
   newMatch();
 })();

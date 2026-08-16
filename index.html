@@ -323,6 +323,7 @@ a{color:#5fc7d6}
   <button class="chip" id="b-leak" title="Live leak meter: this session's river EV loss, bb/100 (key 5)">🎯</button>
   <button class="chip" id="b-score" title="The scorecard — every hand, its cards, and what the rivers cost">📋</button>
   <button class="chip" id="b-log" title="The activity log — every action, every result">☰ log</button>
+  <button class="chip" id="b-online" title="Play a friend: create a table, share the link">👥</button>
   <span class="div"></span>
   <button class="chip" id="b-rated" title="Rated: 40 hands, no assistance, rating on the line. Casual: everything allowed."></button>
   <span class="div"></span>
@@ -380,6 +381,20 @@ a{color:#5fc7d6}
 </div></div>
 
 <div id="logdrawer"><div class="lh">ACTIVITY LOG</div><div id="logbody"></div></div>
+
+<div class="wrap" id="m-online"><div class="modal">
+  <button class="x">✕</button>
+  <h2>Play a friend</h2>
+  <div id="online-body" style="font-size:15px;line-height:1.8">
+    <p>Casual heads-up against a human: the table is dealt by
+    <a href="https://github.com/libre-poker/croupier">the croupier</a> —
+    committed shuffle, your cards revealed only to you, every reveal
+    proven in your own browser. Server-dealt and honestly labeled;
+    casual only, never rated.</p>
+    <p style="margin-top:12px"><button class="mbtn" id="b-maketable" style="background:#3a6d4a;padding:9px 22px;font-size:14px">CREATE TABLE</button></p>
+    <div id="online-status" style="margin-top:10px;color:var(--ink-soft)"></div>
+  </div>
+</div></div>
 
 <div class="wrap" id="m-help"><div class="modal">
   <button class="x">✕</button>
