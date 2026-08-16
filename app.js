@@ -1178,10 +1178,7 @@ async function enterLobby(joinCode) {
         try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
         catch { e.target.textContent = 'select it manually'; }
       });
-      document.getElementById('b-summon').addEventListener('click', (e) => {
-        roomSend({ type: 'summon', level });
-        e.target.textContent = '🤖 summoned — waiting for a bot…';
-      });
+      wireSummon();
     }
     return;
   }
