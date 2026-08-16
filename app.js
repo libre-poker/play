@@ -798,7 +798,7 @@ const myPid = (() => {
   return p;
 })();
 const NET = {
-  on: false, room: null, host: false, oppPid: null,
+  on: false, room: null, host: false, oppPid: null, oppName: null,
   es: null, seq: 0, oppSeq: -1, handNo: 0,
   sid: null, root: null, token: null, cev: null,
   reveals: new Map(),          // envelope index -> value (verified)
@@ -838,11 +838,12 @@ function nextMsg(pred, ms = 60000) {
 function handleRoomMsg(m) {
   if (m.type === 'hello' && !NET.oppPid) {
     NET.oppPid = m.from;
-    roomSend({ type: 'hello2' });
+    NET.oppName = m.name || null;
+    roomSend({ type: 'hello2', name: 'Guest' });
     if (NET.host) startOnlineMatch();
     return;
   }
-  if (m.type === 'hello2' && !NET.oppPid) { NET.oppPid = m.from; return; }
+  if (m.type === 'hello2' && !NET.oppPid) { NET.oppPid = m.from; NET.oppName = m.name || null; return; }
   for (let i = netWaiters.length - 1; i >= 0; i--) {
     if (netWaiters[i].pred(m)) {
       const w = netWaiters[i]; netWaiters.splice(i, 1); w.resolve(m);
@@ -886,7 +887,7 @@ async function playOnlineHand() {
   NET.handNo++;
   const meSeat = mySeatOnline(), oppSeat = 1 - meSeat;
   HERO_SEAT = meSeat;
-  const oppName = 'Guest ' + (NET.oppPid || '').slice(0, 4);
+  const oppName = NET.oppName || ('Guest ' + (NET.oppPid || '').slice(0, 4));
   // host creates the session; guest claims its token
   if (NET.host) {
     const S = await cpost('/create', { n: 52, parties: [myPid, NET.oppPid], openPolicy: 'none', claims: true, meta: { game: 'holdem-hu', hand: NET.handNo } });
@@ -1062,6 +1063,26 @@ async function startOnlineMatch() {
   caption('online match over — <a href="?">back to the bot</a>');
 }
 
+async function hostExistingRoom(code) {
+  NET.room = code.toUpperCase(); NET.host = true;
+  $('#m-online').classList.add('open');
+  openRoomChannel();
+  await roomSend({ type: 'hello' });
+  const link = `${location.origin}${location.pathname}?join=${NET.room}`;
+  netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
+    `<code style="font-size:12px;user-select:all">${link}</code> ` +
+    `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>` +
+    `or <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon a bot</button><br>waiting…`);
+  document.getElementById('b-copylink').addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
+    catch { e.target.textContent = 'select it manually'; }
+  });
+  document.getElementById('b-summon').addEventListener('click', (e) => {
+    roomSend({ type: 'summon', level });
+    e.target.textContent = '🤖 summoned — waiting for a bot…';
+  });
+}
+
 async function enterLobby(joinCode) {
   $('#m-online').classList.add('open');
   if (joinCode) {
@@ -1083,10 +1104,16 @@ async function enterLobby(joinCode) {
     const link = `${location.origin}${location.pathname}?join=${NET.room}`;
     netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
       `<code style="font-size:12px;user-select:all">${link}</code> ` +
-      `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>waiting…`);
+      `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>` +
+      `or <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon a bot</button> · ` +
+      `<a href="lobby.html" style="font-size:13px">browse the lobby</a><br>waiting…`);
     document.getElementById('b-copylink').addEventListener('click', async (e) => {
       try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
       catch { e.target.textContent = 'select it manually'; }
+    });
+    document.getElementById('b-summon').addEventListener('click', (e) => {
+      roomSend({ type: 'summon', level });
+      e.target.textContent = '🤖 summoned — waiting for a bot…';
     });
   };
 }
@@ -1119,5 +1146,7 @@ $('#b-online').addEventListener('click', () => enterLobby(null));
   if (shot) { shotMode(shot); return; }
   const join = new URLSearchParams(location.search).get('join');
   if (join) { enterLobby(join); return; }
+  const hostRoom = new URLSearchParams(location.search).get('table');
+  if (hostRoom) { matchOpen = false; hostExistingRoom(hostRoom); return; }
   newMatch();
 })();

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lobby — Libre Poker</title>
+<meta name="description" content="The open tables of Libre Poker: create a table, join one, or summon a bot. Public by default, dealt by the croupier, verified in your browser.">
+<meta property="og:title" content="Lobby — Libre Poker">
+<meta property="og:description" content="The open tables: create, join, play. Rake-free, provably dealt, casual.">
+<meta property="og:image" content="https://librepoker.org/og-librepoker.png">
+<meta property="og:url" content="https://librepoker.org/play/lobby.html">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<style>
+  :root{
+    --room:#2a2320; --room2:#3a302a; --ink:#f2ede4; --ink-soft:#b8ac9a;
+    --gold:#e9c15c; --green:#3f7d4e; --accent:#5fc7d6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(120% 100% at 50% 0%, var(--room2), var(--room) 70%);
+    color:var(--ink);min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .page{max-width:640px;margin:0 auto;padding:36px 20px 80px}
+  h1{font-size:24px;letter-spacing:.04em}
+  h1 b{color:var(--gold)}
+  .sub{color:var(--ink-soft);font-size:14px;margin:6px 0 26px}
+  .sub a{color:var(--accent)}
+  .make{display:flex;gap:10px;margin-bottom:30px}
+  .make input{
+    flex:1;background:#00000042;border:1px solid #ffffff22;border-radius:8px;
+    color:var(--ink);padding:10px 14px;font-size:14px;
+  }
+  .make button{
+    background:var(--green);color:#f6f2e8;border:none;border-radius:8px;
+    padding:10px 22px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.03em;
+  }
+  h2{font-size:13px;font-weight:800;letter-spacing:.16em;color:var(--ink-soft);margin-bottom:10px}
+  .table-row{
+    display:flex;align-items:center;gap:12px;background:#00000038;
+    border:1px solid #ffffff14;border-radius:10px;padding:12px 16px;margin-bottom:8px;
+  }
+  .table-row .nm{font-weight:700;font-size:15px}
+  .table-row .code{font-family:ui-monospace,monospace;font-size:12px;color:var(--gold)}
+  .table-row .info{font-size:12px;color:var(--ink-soft)}
+  .table-row .spacer{flex:1}
+  .table-row a{
+    background:#b08a3e;color:#fff;text-decoration:none;border-radius:7px;
+    padding:7px 18px;font-size:13px;font-weight:800;
+  }
+  #empty{color:var(--ink-soft);font-size:14px;padding:18px 4px}
+  .foot{margin-top:36px;font-size:13px;color:var(--ink-soft)}
+  .foot a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>♠ <b>Libre</b> Poker — the lobby</h1>
+  <div class="sub">Open tables, public by default — dealt by
+    <a href="https://github.com/libre-poker/croupier">the croupier</a>, proven in your
+    browser, casual always. Or <a href="./">play the trainer</a> solo.</div>
+
+  <div class="make">
+    <input id="name" maxlength="40" placeholder="table name (optional)">
+    <button id="create">CREATE TABLE</button>
+  </div>
+
+  <h2>OPEN TABLES</h2>
+  <div id="list"></div>
+  <div id="empty" style="display:none">No open tables — create the first one.</div>
+
+  <div class="foot">A table stays listed for a day. Share
+  <code>?join=CODE</code> links to invite directly; a 🤖 bot can be summoned
+  from inside any table while you wait.</div>
+</div>
+
+<script>
+const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
+const $ = (q) => document.querySelector(q);
+
+async function refresh() {
+  try {
+    const r = await fetch(CROUPIER + '/room/list').then((x) => x.json());
+    const rows = (r.rooms || []).map((t) => {
+      const age = Math.max(0, Math.round((Date.now() - t.createdAt) / 60000));
+      return `<div class="table-row">
+        <div><div class="nm">${(t.name || 'table').replace(/[<>&]/g, '')}</div>
+        <div class="code">${t.room}</div></div>
+        <div class="info">${t.listeners} listening · ${age}m old</div>
+        <span class="spacer"></span>
+        <a href="./?join=${t.room}">JOIN</a>
+      </div>`;
+    });
+    $('#list').innerHTML = rows.join('');
+    $('#empty').style.display = rows.length ? 'none' : '';
+  } catch { $('#empty').style.display = ''; $('#empty').textContent = 'lobby unreachable — try again shortly'; }
+}
+$('#create').addEventListener('click', async () => {
+  const name = $('#name').value.trim();
+  const r = await fetch(CROUPIER + '/room/create', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, game: 'holdem-hu' }),
+  }).then((x) => x.json());
+  if (r.room) location.href = `./?table=${r.room}`;
+});
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
