@@ -362,7 +362,7 @@ function buildDoc(hh, seed, gradeList) {
   let sn = 'preflop';
   actions.forEach((a, idx) => {
     if (a.street) { sn = a.street; return; }
-    if (a.seat !== HERO) return;
+    if (a.seat !== HERO_SEAT) return;
     const g = gradeList.find((x, gi) => !used.has(gi) && x.street === sn && used.add(gi));
     if (!g) return;
     const an = { action: idx };
@@ -375,11 +375,12 @@ function buildDoc(hh, seed, gradeList) {
     '@context': 'https://librepoker.org/context.jsonld',
     type: 'Hand', v: 0, variant: 'holdem-limit',
     seed, sb: hh.sb, bb: hh.bb, ante: hh.ante, button: hh.button,
+    hero: HERO_SEAT,
     seats: hh.seats.map((s, i) => ({
-      name: i === HERO ? 'You' : `Level ${level}`,
+      name: i === HERO_SEAT ? 'You' : (NET.on ? (NET.oppName || 'Guest') : `Level ${level}`),
       startStack: s.startStack,
       hole: s.hole ? s.hole.map(ascii) : null,
-      ...(i === BOT ? { agent: `librepoker-ladder-${level}` } : {}),
+      ...(!NET.on && i === BOT ? { agent: `librepoker-ladder-${level}` } : {}),
     })),
     board: hh.board.map(ascii),
     actions,
@@ -408,7 +409,7 @@ function transcriptHTML(doc) {
       lines.push(`<div style="color:var(--gold);font-weight:700;font-family:system-ui,sans-serif;font-size:12px;letter-spacing:.12em;margin-top:8px">${a.street.toUpperCase()} &nbsp;${prettyCards(doc.board.slice(0, bCount[a.street]))}</div>`);
       return;
     }
-    const me = a.seat === HERO;
+    const me = a.seat === (doc.hero ?? 0);
     const col = a.act === 'fold' ? 'var(--red)' : (a.act === 'bet' || a.act === 'raise') ? 'var(--gold)' : 'var(--green)';
     const verb = a.act === 'raise' ? `raise${me ? '' : 's'} to ${a.to}` : a.act === 'bet' ? `bet${me ? '' : 's'} ${a.to}`
       : a.act === 'call' ? `call${me ? '' : 's'}${a.amount != null ? ' ' + a.amount : ''}` : `${a.act}${me ? '' : 's'}`;
@@ -943,6 +944,8 @@ async function playOnlineHand() {
   // "me" — so online rendering uses a view swap:
   const viewSeat = (engineSeat) => engineSeat === meSeat ? 0 : 1;
 
+  const cache = {};
+  const handGrades = [];
   seats.forEach((s2) => { s2.said.textContent = ''; });
   $('#verdict').textContent = '';
   logLine(`Hand #${NET.handNo} vs ${oppName} — root ${commit8}…`, 'lh2');
@@ -965,11 +968,37 @@ async function playOnlineHand() {
     if (L.seat === meSeat) {
       renderOnline(viewSeat);
       const a = await heroTurn(L);
+      let g = null;
+      if (table) {
+        const mix = teachMix(L);
+        if (mix.known) {
+          const names = mixNames(mix, L);
+          const chosen = a.action === 'fold' ? 'f' : (a.action === 'bet' || a.action === 'raise') ? 'b' : 'k';
+          const ci = mix.acts.indexOf(chosen);
+          let evLossBb = null;
+          if (mix.solved) {
+            const ev = riverEvs(h, meSeat, table, cache);
+            const ei = ev ? ev.acts.indexOf(chosen) : -1;
+            if (ei >= 0) evLossBb = (Math.max(...ev.evs) - ev.evs[ei]) / h.bb;
+          }
+          g = {
+            street: STREETS[h.street], hinted: a.hinted,
+            mix: Object.fromEntries(mix.acts.map((ac, i2) => [names[i2], +mix.probs[i2].toFixed(4)])),
+            evLossBb,
+          };
+          handGrades.push(g);
+        }
+      }
       const preCommits = h.seats.map((x) => x.streetCommit);
       act(h, { seat: meSeat, action: a.action, amount: a.amount });
       say(0, a.action + (a.amount ? ' ' + a.amount : ''));
       logLine(`You ${a.action}${a.amount ? ' ' + a.amount : ''}`);
       await roomSend({ type: 'act', handNo: NET.handNo, sid: NET.sid, action: a.action, amount: a.amount ?? null });
+      if (g) {
+        const pC = g.mix[mixKeyOf(a)] ?? 0;
+        const pM = Math.max(...Object.values(g.mix));
+        sGrade(gradeWord(pC, pM));
+      }
       sChip();
       await afterActOnline(lastStreet, preCommits, viewSeat);
       lastStreet = h.street;
@@ -1026,6 +1055,11 @@ async function playOnlineHand() {
   for (const w of winners) seats[viewSeat(w)].root.classList.add('winner');
   for (const w of winners) logLine(`<span class="lw">${w === meSeat ? 'You win' : oppName + ' wins'} ${share}</span>`);
   caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
+  if (folded >= 0) h.seats[1 - meSeat].hole = null;
+  const doc = buildDoc(h, null, handGrades);
+  doc.root = NET.root;
+  doc.result = { showdown: folded < 0, pot, winners: winners.map((w) => ({ seat: w, amount: share })) };
+  docs.push(doc);
   renderTop();
   await new Promise((resolve) => {
     const bar = $('#actions');
