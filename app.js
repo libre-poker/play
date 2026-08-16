@@ -122,18 +122,30 @@ function renderHand(reveal = false) {
   for (const c of h.board) boardEl.appendChild(cardEl(ascii(c)));
   for (const i of [HERO, BOT]) {
     const s = h.seats[i], el = seats[i];
-    el.nm.innerHTML = `${i === HERO ? 'You' : 'Level ' + level}${h.button === i ? ' <span class="d">●</span>' : ''}`;
+    el.nm.textContent = i === HERO ? 'You' : 'Level ' + level;
     el.st.textContent = s.stack;
     el.root.classList.toggle('active', h.phase === 'act' && h.toAct === i);
+    let db = el.root.querySelector('.dbtn');
+    if (h.button === i) {
+      if (!db) { db = document.createElement('div'); db.className = 'dbtn'; db.textContent = 'D'; el.root.appendChild(db); }
+    } else if (db) db.remove();
     el.cards.innerHTML = '';
     if (s.hole) {
       const show = i === HERO || reveal;
       for (const c of s.hole) el.cards.appendChild(show ? cardEl(ascii(c)) : backEl());
     }
-    if (s.folded) el.said.textContent = 'folded';
+    if (s.folded) say(i, 'folded');
+    const bp = $('#bet-' + i);
+    bp.classList.toggle('show', s.streetCommit > 0 && h.phase === 'act');
+    bp.querySelector('span').textContent = s.streetCommit;
   }
 }
-const say = (i, txt) => { seats[i].said.textContent = txt; };
+const SAY_COL = { fold: '#e08a85', folded: '#e08a85', check: '#8fd0a0', call: '#8fd0a0', bet: '#e2c06a', raise: '#e2c06a' };
+const say = (i, txt) => {
+  const el = seats[i].said;
+  el.textContent = txt;
+  el.style.color = SAY_COL[txt.split(' ')[0]] ?? '#b9c4b4';
+};
 const caption = (html) => { $('#caption').innerHTML = html; };
 
 // ---------------------------------------------------------------- mixes
