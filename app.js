@@ -118,8 +118,11 @@ function renderHand(reveal = false) {
   const pot = h.seats.reduce((a, s) => a + s.handCommit, 0);
   $('#pot').textContent = pot > 0 ? `pot ${pot}` : '';
   const boardEl = $('#board');
-  boardEl.innerHTML = '';
-  for (const c of h.board) boardEl.appendChild(cardEl(ascii(c)));
+  if (boardEl.children.length > h.board.length) boardEl.innerHTML = '';
+  for (let bi = boardEl.children.length; bi < h.board.length; bi++) {
+    boardEl.appendChild(cardEl(ascii(h.board[bi])));
+    sCard();
+  }
   for (const i of [HERO, BOT]) {
     const s = h.seats[i], el = seats[i];
     el.nm.textContent = i === HERO ? 'You' : 'Level ' + level;
@@ -129,10 +132,12 @@ function renderHand(reveal = false) {
     if (h.button === i) {
       if (!db) { db = document.createElement('div'); db.className = 'dbtn'; db.textContent = 'D'; el.root.appendChild(db); }
     } else if (db) db.remove();
-    el.cards.innerHTML = '';
-    if (s.hole) {
-      const show = i === HERO || reveal;
-      for (const c of s.hole) el.cards.appendChild(show ? cardEl(ascii(c)) : backEl());
+    const show = i === HERO || reveal;
+    const sig = s.hole ? (show ? s.hole.map(ascii).join('') : 'back' + s.hole.length) : '';
+    if (el.cards.dataset.sig !== sig) {
+      el.cards.dataset.sig = sig;
+      el.cards.innerHTML = '';
+      if (s.hole) for (const c of s.hole) el.cards.appendChild(show ? cardEl(ascii(c)) : backEl());
     }
     if (s.folded) say(i, 'folded');
     const bp = $('#bet-' + i);
@@ -179,6 +184,7 @@ const gradeWord = (pChosen, pMax) =>
 function heroTurn(L) {
   const bar = $('#actions');
   bar.innerHTML = '';
+  caption('');
   let hinted = false;
   const assist = !rated && table;
   let coachMix = null;
