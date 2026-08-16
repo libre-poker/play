@@ -858,15 +858,16 @@ function handleRoomMsg(m, t = 0) {
     if (Date.now() - t < 90000) { NET.probeHello = { from: m.from, name: m.name || null }; }
     return;
   }
-  if (m.type === 'hello' && !NET.oppPid) {
+  if (m.type === 'hello' && !NET.oppPid && m.re === myPid) {
     NET.oppPid = m.from;
     NET.oppName = m.name || null;
     clearInterval(NET.heartbeat);
-    roomSend({ type: 'hello2', name: 'Guest' });
+    roomSend({ type: 'hello2', name: 'Guest', re: m.from });
     if (NET.host) startOnlineMatch();
     return;
   }
-  if (m.type === 'hello2' && !NET.oppPid) { NET.oppPid = m.from; NET.oppName = m.name || null; clearInterval(NET.heartbeat); return; }
+  if (m.type === 'hello2' && !NET.oppPid && m.re === myPid) { NET.oppPid = m.from; NET.oppName = m.name || null; clearInterval(NET.heartbeat); return; }
+  if (m.type === 'hello' || m.type === 'hello2') return;
   for (let i = netWaiters.length - 1; i >= 0; i--) {
     if (netWaiters[i].pred(m)) {
       const w = netWaiters[i]; netWaiters.splice(i, 1); w.resolve(m);
@@ -920,7 +921,7 @@ async function playOnlineHand() {
     await roomSend({ type: 'start', handNo: NET.handNo, sid: S.sid, root: S.root, claim: S.claims[NET.oppPid] });
   } else {
     caption('waiting for the host to deal…');
-    const m = await nextMsg((x) => x.type === 'start' && x.handNo === NET.handNo, 10 * 60000);
+    const m = await nextMsg((x) => x.type === 'start' && x.handNo === NET.handNo && x.from === NET.oppPid, 10 * 60000);
     caption('');
     NET.sid = m.sid; NET.root = m.root;
     const mine = await cpost('/claim', { sid: m.sid, party: myPid, code: m.claim });
@@ -975,7 +976,7 @@ async function playOnlineHand() {
     } else {
       renderOnline(viewSeat);
       caption(`waiting for ${oppName}…`);
-      const m = await nextMsg((x) => x.type === 'act' && x.handNo === NET.handNo, 10 * 60000);
+      const m = await nextMsg((x) => x.type === 'act' && x.handNo === NET.handNo && x.from === NET.oppPid, 10 * 60000);
       caption('');
       // their engine move must be legal in OUR engine — mutual refereeing
       const L2 = legal(h);
@@ -1125,7 +1126,7 @@ async function enterLobby(joinCode) {
       NET.host = false;
       NET.oppPid = NET.probeHello.from;
       NET.oppName = NET.probeHello.name;
-      await roomSend({ type: 'hello' });
+      await roomSend({ type: 'hello', re: NET.probeHello.from });
       NET.on = true;
       netStatus('host found — waiting for the deal…');
       startOnlineGuestLoop();
