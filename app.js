@@ -180,7 +180,7 @@ const seats = [0, 1].map((i) => ({
 function renderTop() {
   $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}`;
   $('#b-level').textContent = `Lv ${level}`;
-  $('#b-rating').textContent = `⚡ ${Math.round(rating.r)}`;
+  $('#b-rating').textContent = `⚡ ${Math.round(rating.r)}${rating.rd > 110 ? '?' : ''}`;
   const bk = $('#b-bank');
   bk.textContent = `🏦 ${bank >= 0 ? '+' : ''}${bank.toLocaleString()}`;
   bk.classList.toggle('leak-ok', bank > 0);
