@@ -78,11 +78,11 @@ const isRed = (a) => a[1] === 'd' || a[1] === 'h';
 const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
 function cardEl(a) {
   const d = document.createElement('div');
-  d.className = 'pcard' + (isRed(a) ? ' r' : '');
-  d.innerHTML = `<div>${a[0] === 'T' ? '10' : a[0]}</div><div class="s">${GLYPH[a[1]]}</div>`;
+  d.className = 'card flipin' + (isRed(a) ? ' red' : '');
+  d.innerHTML = `<div class="r">${a[0] === 'T' ? '10' : a[0]}</div><div class="s">${GLYPH[a[1]]}</div>`;
   return d;
 }
-function backEl() { const d = document.createElement('div'); d.className = 'pcard back'; return d; }
+function backEl() { const d = document.createElement('div'); d.className = 'card back'; return d; }
 const prettyA = (a) => `<b style="color:${isRed(a) ? 'var(--red)' : 'inherit'}">${a[0] === 'T' ? '10' : a[0]}${GLYPH[a[1]]}</b>`;
 const prettyCards = (arr) => arr.map(prettyA).join(' ');
 
