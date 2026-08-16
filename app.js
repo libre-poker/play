@@ -813,6 +813,23 @@ function roomSend(msg) {
   return cpost('/room/send', { room: NET.room, msg: { from: myPid, seq: NET.seq++, ...msg } });
 }
 function netStatus(t) { const el = $('#online-status'); if (el) el.innerHTML = t; }
+const SUMMON_UI = `<select id="summon-pick" style="background:#00000042;color:var(--ink);border:1px solid #ffffff22;border-radius:6px;padding:4px 8px;font-size:13px">
+  <option value="ladder:7">Bot · Lv 7 (the champion)</option>
+  <option value="ladder:5">Bot · Lv 5</option>
+  <option value="ladder:3">Bot · Lv 3</option>
+  <option value="tag:0">Cmdr. Sterling (tight)</option>
+  <option value="rock:0">Old Anchor (rock)</option>
+  <option value="lag:0">Gunner Halloway (wild)</option>
+  <option value="station:0">Cook Barnacle (calls)</option>
+  <option value="maniac:0">Mad Wren (maniac)</option>
+</select> <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon</button>`;
+function wireSummon() {
+  document.getElementById('b-summon')?.addEventListener('click', (e) => {
+    const [bot, lvl] = (document.getElementById('summon-pick')?.value || 'ladder:7').split(':');
+    roomSend({ type: 'summon', bot, level: +lvl || undefined });
+    e.target.textContent = '🤖 summoned…';
+  });
+}
 
 function openRoomChannel() {
   const es = new EventSource(`${CROUPIER}/room/events?room=${NET.room}`);
@@ -1090,10 +1107,7 @@ async function hostExistingRoom(code) {
     try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
     catch { e.target.textContent = 'select it manually'; }
   });
-  document.getElementById('b-summon').addEventListener('click', (e) => {
-    roomSend({ type: 'summon', level });
-    e.target.textContent = '🤖 summoned — waiting for a bot…';
-  });
+  wireSummon();
 }
 
 async function enterLobby(joinCode) {
@@ -1124,7 +1138,7 @@ async function enterLobby(joinCode) {
       netStatus(`this table was empty — <b>you are hosting ${NET.room}</b>.<br>` +
         `share: <code style="font-size:12px;user-select:all">${link}</code> ` +
         `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>` +
-        `or <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon a bot</button><br>waiting…`);
+        `or ${SUMMON_UI}<br>waiting…`);
       document.getElementById('b-copylink').addEventListener('click', async (e) => {
         try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
         catch { e.target.textContent = 'select it manually'; }
@@ -1146,16 +1160,13 @@ async function enterLobby(joinCode) {
     netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
       `<code style="font-size:12px;user-select:all">${link}</code> ` +
       `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>` +
-      `or <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon a bot</button> · ` +
+      `or ${SUMMON_UI} · ` +
       `<a href="lobby.html" style="font-size:13px">browse the lobby</a><br>waiting…`);
     document.getElementById('b-copylink').addEventListener('click', async (e) => {
       try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
       catch { e.target.textContent = 'select it manually'; }
     });
-    document.getElementById('b-summon').addEventListener('click', (e) => {
-      roomSend({ type: 'summon', level });
-      e.target.textContent = '🤖 summoned — waiting for a bot…';
-    });
+    wireSummon();
   };
 }
 async function startOnlineGuestLoop() {
