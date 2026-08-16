@@ -681,7 +681,7 @@ $('#b-rated').addEventListener('click', () => {
     if (NET.rated && handNo > 0) { caption('rated locks during the match'); return; }
     rated = !rated;
     localStorage.setItem('lp.rated', rated ? '1' : '0');
-    caption(rated ? '🏅 rated applies from your next summon' : '☕ casual');
+    caption(rated ? '🏅 rated applies from the next match' : '☕ casual from the next match');
     renderTop();
     return;
   }
@@ -1157,15 +1157,20 @@ async function startOnlineMatch() {
     try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
     if (NET.rated && handNo >= RATED_HANDS && NET.on) {
       await matchEnd();
-      // the match is settled — hold the table until the scorecard is read
-      caption('match settled — close the scorecard for the next 40');
+      // between matches: counters reset NOW so the rated pill unlocks while
+      // the scorecard is up — this is the moment to switch to casual
+      docs = []; net = 0; handNo = 0;
+      renderTop();
+      caption('match settled — 🏅/☕ can be switched now; close the scorecard to play on');
       await new Promise((r) => {
         const t = setInterval(() => {
           if (!$('#m-score').classList.contains('open')) { clearInterval(t); r(); }
         }, 250);
       });
       caption('');
-      docs = []; net = 0; handNo = 0;    // the next 40 begin fresh
+      // honor whatever the pill says for the match that begins now
+      NET.rated = rated && NET.summon?.bot === 'ladder' && !!NET.summon?.level
+        && (NET.oppAgent || '').startsWith('librepoker-ladder');
       renderTop();
     }
   }
