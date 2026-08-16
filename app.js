@@ -28,6 +28,11 @@ let level = Math.min(7, Math.max(2, +(localStorage.getItem('lp.level') || 7)));
 let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
+let bank = +(localStorage.getItem('lp.bank') ?? 0) || 0;
+function bankAdd(delta) {
+  bank += delta;
+  localStorage.setItem('lp.bank', String(bank));
+}
 let coachMode = localStorage.getItem('lp.coach') === '1';
 let fourColor = localStorage.getItem('lp.fourc') !== '0';   // default on: a trainer reads suits fast
 let commit8 = '';                 // sha256(seed) prefix — the shuffle's promise
@@ -176,6 +181,10 @@ function renderTop() {
   $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}`;
   $('#b-level').textContent = `Lv ${level}`;
   $('#b-rating').textContent = `⚡ ${Math.round(rating.r)}`;
+  const bk = $('#b-bank');
+  bk.textContent = `🏦 ${bank >= 0 ? '+' : ''}${bank.toLocaleString()}`;
+  bk.classList.toggle('leak-ok', bank > 0);
+  bk.classList.toggle('leak-bad', bank < 0);
   $('#b-rated').textContent = rated ? `🏅 rated ${Math.min(handNo, RATED_HANDS)}/${RATED_HANDS}` : '☕ casual';
   $('#b-rated').classList.toggle('on', rated);
   $('#b-sound').textContent = soundOn ? '🔊' : '🔇';
@@ -592,6 +601,7 @@ async function playHand() {
   if (r.showdown) for (const [i2, e2] of Object.entries(r.evals ?? {})) logLine(`${+i2 === HERO ? 'You' : 'Bot'} shows ${h.seats[+i2].hole.map(ascii).join(' ')} — ${handName(e2)}`);
   const heroDelta = h.seats[HERO].stack - STACK;
   net += heroDelta;
+  bankAdd(heroDelta);
   for (const w2 of r.winners) logLine(`<span class="lw">${w2.seat === HERO ? 'You win' : 'Bot wins'} ${w2.amount.toLocaleString()}</span>`);
   const potEl = $('#pot');
   const winSeat = r.winners[0]?.seat;
@@ -670,6 +680,11 @@ $('#b-rated').addEventListener('click', () => {
 $('#b-sound').addEventListener('click', () => {
   audio(); soundOn = !soundOn;
   localStorage.setItem('lp.sound', soundOn ? '1' : '0');
+  renderTop();
+});
+$('#b-bank').addEventListener('dblclick', () => {
+  bank = 0;
+  localStorage.setItem('lp.bank', '0');
   renderTop();
 });
 $('#b-leak').addEventListener('click', () => {
@@ -1049,6 +1064,7 @@ async function playOnlineHand() {
   const share = Math.floor(pot / winners.length);
   const myDelta = (winners.includes(meSeat) ? share : 0) - h.seats[meSeat].handCommit;
   net += myDelta;
+  bankAdd(myDelta);
   const potEl = $('#pot');
   potEl.classList.add('winline');
   potEl.textContent = winners.map((w) => `${w === meSeat ? 'You win' : oppName + ' wins'} ${share}`).join(' · ');
