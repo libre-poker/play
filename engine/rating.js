@@ -58,6 +58,9 @@ export function glicko2(player, results) {
   };
 }
 
-// the ladder's fixed opposition, lichess-style
-export const LEVEL_RATING = { 2: 800, 3: 1000, 4: 1200, 5: 1400, 6: 1600, 7: 1800 };
+// the ladder's opposition, measured rather than declared: least-squares fit
+// to 150 simulated 20-hand matches per pairing (2026-08, strategy iteration
+// in play/strategy-hulimit.json), smoothed monotone — the top three rungs
+// are genuinely close, the cliff is Lv5 down to Lv2
+export const LEVEL_RATING = { 2: 1370, 3: 1420, 4: 1455, 5: 1485, 6: 1490, 7: 1500 };
 export const LEVEL_RD = 60;

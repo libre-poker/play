@@ -632,16 +632,20 @@ function mixKeyOf(a) {
 }
 
 async function matchEnd() {
-  const won = net > 0 ? 1 : net < 0 ? 0 : 0.5;
+  // margin scoring: the chip margin carries skill signal a binary result
+  // discards. ±1.7bb/hand over the match maps to a full win/loss — chosen
+  // so its expectation matches the win rates the anchors were fitted to
+  const cap = 1.7 * BB * RATED_HANDS;
+  const score = Math.max(0, Math.min(1, 0.5 + net / (2 * cap)));
   const before = Math.round(rating.r);
-  rating = glicko2(rating, [{ r: LEVEL_RATING[level], rd: LEVEL_RD, score: won }]);
+  rating = glicko2(rating, [{ r: LEVEL_RATING[level], rd: LEVEL_RD, score }]);
   localStorage.setItem('lp.rating', JSON.stringify(rating));
   const after = Math.round(rating.r);
   renderTop();
   renderScorecard();
   $('#score-note').textContent =
     `Rated match vs level ${level}${NET.on ? ' (online, croupier-dealt)' : ''}: ${net >= 0 ? '+' : ''}${net} chips over ${RATED_HANDS} hands — ` +
-    `rating ${before} → ${after} (${after - before >= 0 ? '+' : ''}${after - before}). Click a hand for the transcript.`;
+    `margin score ${score.toFixed(2)} — rating ${before} → ${after} (${after - before >= 0 ? '+' : ''}${after - before}). Click a hand for the transcript.`;
   $('#m-score').classList.add('open');
   matchOpen = false;
   caption(`match over — <a href="#" id="again">deal the next match</a>`);
