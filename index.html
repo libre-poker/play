@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play — Libre Poker</title>
+<meta name="description" content="Heads-up fixed-limit hold'em against a near-unexploitable trainer — solved preflop, exact river solves, and a leak meter that grades every decision in big blinds. Rake-free, provably fair, rated or casual.">
+<meta property="og:title" content="Play — Libre Poker">
+<meta property="og:description" content="Heads-up against the solved game. The leak meter tells you, in exact big blinds, what every river decision cost. The house always wins — so there is no house.">
+<meta property="og:image" content="https://librepoker.org/og-librepoker.png">
+<meta property="og:url" content="https://librepoker.org/play/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<style>
+  :root{
+    --paper:#faf6ef; --ink:#2a2520; --ink-soft:#6b6259; --line:#e3dccd;
+    --gold:#a07d2a; --red:#b0413e; --green:#2e7d43; --navy:#274060;
+    --card:#fffdf8; --felt:#eef3ec; --felt-line:#c9d8c6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:Georgia,'Times New Roman',serif; font-size:17px;
+    display:flex; flex-direction:column;
+  }
+  button{font-family:system-ui,sans-serif;cursor:pointer}
+
+  /* ---- top bar */
+  #top{
+    display:flex; align-items:center; gap:10px; padding:10px 16px;
+    border-bottom:1px solid var(--line); flex-wrap:wrap;
+  }
+  #top .word{font-weight:700; font-size:18px; text-decoration:none; color:var(--ink)}
+  #top .word b{color:var(--gold)}
+  #top .spacer{flex:1}
+  .chip{
+    font-family:system-ui,sans-serif; font-size:13px; font-weight:700;
+    background:var(--card); border:1px solid var(--line); border-radius:7px;
+    padding:5px 12px; color:var(--ink);
+  }
+  .chip.on{border-color:var(--gold); color:var(--gold)}
+  .chip.leak-ok{color:var(--green)} .chip.leak-bad{color:var(--red)}
+
+  /* ---- table */
+  #stage{flex:1; display:flex; align-items:center; justify-content:center; padding:12px}
+  #table{
+    width:min(760px,96vw); border:1px solid var(--felt-line);
+    background:var(--felt); border-radius:200px; padding:26px 30px 30px;
+    box-shadow:inset 0 2px 14px rgba(60,90,60,.08), 0 1px 4px rgba(60,50,30,.06);
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    min-height:420px; justify-content:space-between;
+  }
+  .seat{
+    text-align:center; background:var(--card); border:1px solid var(--line);
+    border-radius:12px; padding:10px 22px; min-width:190px;
+    transition:box-shadow .2s;
+  }
+  .seat.active{box-shadow:0 0 0 2px var(--gold)}
+  .seat .nm{font-family:system-ui,sans-serif; font-size:13px; font-weight:700}
+  .seat .nm .d{color:var(--gold)}
+  .seat .st{font-size:14px; color:var(--ink-soft)}
+  .seat .cards{display:flex; gap:6px; justify-content:center; margin-top:7px; min-height:58px}
+  .seat .said{font-size:13px; font-style:italic; color:var(--ink-soft); min-height:18px; margin-top:4px}
+  .pcard{
+    width:40px; height:56px; background:var(--card); border:1px solid #d5cdbb;
+    border-radius:6px; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; font-weight:700; font-size:17px; line-height:1.1;
+    box-shadow:0 1px 2px rgba(60,50,30,.12);
+  }
+  .pcard.back{background:repeating-linear-gradient(45deg,#dfe8ee,#dfe8ee 4px,#cfdce6 4px,#cfdce6 8px)}
+  .pcard .s{font-size:14px}
+  .pcard.r{color:var(--red)}
+  #mid{display:flex; flex-direction:column; align-items:center; gap:8px}
+  #pot{
+    font-family:system-ui,sans-serif; font-size:13px; font-weight:700;
+    background:var(--card); border:1px solid var(--line); border-radius:20px; padding:3px 14px;
+    min-height:24px;
+  }
+  #board{display:flex; gap:8px; min-height:58px}
+  #verdict{font-size:14px; font-style:italic; color:var(--ink-soft); min-height:20px; text-align:center}
+
+  /* ---- action bar */
+  #bottom{padding:0 16px 18px}
+  #caption{
+    max-width:680px; margin:0 auto 10px; text-align:center; font-size:14px;
+    color:var(--ink-soft); min-height:20px;
+  }
+  #actions{display:flex; gap:10px; justify-content:center; align-items:flex-end; min-height:56px}
+  #actions button{
+    border:none; border-radius:9px; padding:13px 26px; font-size:15px; font-weight:700;
+    color:#faf6ef; position:relative;
+  }
+  #b-fold{background:var(--red)} #b-call{background:var(--green)} #b-raise{background:var(--gold)}
+  #actions button:disabled{opacity:.4; cursor:default}
+  #actions .qbtn{
+    background:var(--card); color:var(--ink); border:1px solid var(--line);
+    padding:13px 16px; font-size:16px;
+  }
+  .pct{
+    position:absolute; top:-22px; left:50%; transform:translateX(-50%);
+    font-size:12.5px; font-weight:700; color:var(--gold); white-space:nowrap;
+  }
+  .pct.zero{color:var(--ink-soft); opacity:.6}
+
+  /* ---- modals */
+  .wrap{
+    position:fixed; inset:0; background:rgba(42,37,32,.45); display:none;
+    align-items:center; justify-content:center; padding:18px; z-index:20;
+  }
+  .wrap.open{display:flex}
+  .modal{
+    background:var(--paper); border:1px solid var(--line); border-radius:12px;
+    max-width:680px; width:100%; max-height:88vh; overflow:auto;
+    padding:26px 30px; position:relative; box-shadow:0 8px 40px rgba(40,30,20,.25);
+  }
+  .modal h2{font-size:22px; margin-bottom:14px}
+  .modal .x{
+    position:absolute; top:14px; right:16px; background:none; border:none;
+    font-size:18px; color:var(--ink-soft);
+  }
+  .mbtn{
+    font-size:13px; font-weight:700; border:none; border-radius:6px;
+    padding:5px 14px; color:#f6f2e8;
+  }
+  .score-row{cursor:pointer; border-radius:6px; padding:1px 6px}
+  .score-row:hover{background:var(--card)}
+  a{color:var(--navy)}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <a class="word" href="https://librepoker.org/"><b>Libre</b> Poker · play</a>
+  <span class="spacer"></span>
+  <button class="chip" id="b-level" title="Opponent strength — higher levels play the strategy purer"></button>
+  <button class="chip" id="b-rating" title="Your Glicko-2 rating, moved only by rated matches"></button>
+  <button class="chip" id="b-leak" title="Live leak meter: this session's river EV loss, bb/100 (key 5)">🎯</button>
+  <button class="chip" id="b-score" title="The scorecard — every hand, its cards, and what the rivers cost">📋</button>
+  <button class="chip" id="b-rated" title="Rated: 40 hands, no assistance, rating on the line. Casual: everything allowed."></button>
+  <button class="chip" id="b-sound" title="Sound"></button>
+  <button class="chip" id="b-help" title="Help">?</button>
+</div>
+
+<div id="stage">
+  <div id="table">
+    <div class="seat" id="seat-1">
+      <div class="nm"></div><div class="st"></div>
+      <div class="cards"></div><div class="said"></div>
+    </div>
+    <div id="mid">
+      <div id="pot"></div>
+      <div id="board"></div>
+      <div id="verdict"></div>
+    </div>
+    <div class="seat" id="seat-0">
+      <div class="nm"></div><div class="st"></div>
+      <div class="cards"></div><div class="said"></div>
+    </div>
+  </div>
+</div>
+
+<div id="bottom">
+  <div id="caption"></div>
+  <div id="actions"></div>
+</div>
+
+<div class="wrap" id="m-score"><div class="modal">
+  <button class="x">✕</button>
+  <h2>Scorecard <span id="score-leak" style="float:right;margin-right:30px;font-size:15px"></span></h2>
+  <div id="score-note" style="font-size:13px;color:var(--ink-soft);margin-bottom:10px"></div>
+  <div id="score-list" style="font-size:14.5px;line-height:1.8;max-height:56vh;overflow:auto;padding-right:14px;scrollbar-width:thin"></div>
+</div></div>
+
+<div class="wrap" id="m-hand"><div class="modal">
+  <button class="x">✕</button>
+  <h2 id="hand-title">Hand
+    <span style="float:right;margin-right:30px;display:inline-flex;gap:8px">
+      <button class="mbtn" id="b-copytext" style="background:var(--gold);color:#1c1812">📋 text</button>
+      <button class="mbtn" id="b-copyjson" style="background:var(--navy)">{ } json</button>
+    </span>
+  </h2>
+  <div id="hand-body" style="font-size:15px;line-height:1.75;max-height:60vh;overflow:auto;padding-right:12px;scrollbar-width:thin"></div>
+</div></div>
+
+<div class="wrap" id="m-help"><div class="modal">
+  <button class="x">✕</button>
+  <h2>The room</h2>
+  <div style="font-size:15.5px;line-height:1.8">
+  <p>Heads-up fixed-limit hold'em against a near-unexploitable trainer:
+  solved preflop (Cepheus), trained middle streets, every river solved
+  exactly as you play it. Blinds 10/20, stacks reset each hand.</p>
+  <p style="margin-top:10px"><b>Keys</b> — <code>1</code> fold ·
+  <code>2</code> check/call · <code>3</code> bet/raise ·
+  <code>4</code> coach · <code>5</code> leak meter.</p>
+  <p style="margin-top:10px"><b>🎯 The leak meter</b> grades every river
+  decision against the exact solve, in big blinds per 100 hands. Under 5
+  is the historical pro bar. The 📋 scorecard lists every hand — click one
+  for the transcript, copy it as text or as a
+  <a href="https://github.com/libre-poker/schema">Hand document</a>.</p>
+  <p style="margin-top:10px"><b>🏅 Rated</b> plays 40-hand matches against
+  the level with assistance structurally removed — the scorecard opens
+  when the match ends. ☕ Casual allows everything and touches nothing.</p>
+  <p style="margin-top:10px">New to the game? The library:
+  <a href="https://tide-games.github.io/wardroom/beginner.html">Deckhand</a> ·
+  <a href="https://tide-games.github.io/wardroom/intermediate.html">Mate</a> ·
+  <a href="https://tide-games.github.io/wardroom/tutorial.html">Primer</a>.</p>
+  </div>
+</div></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
