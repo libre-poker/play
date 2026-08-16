@@ -87,11 +87,86 @@ function backEl() { const d = document.createElement('div'); d.className = 'card
 const prettyA = (a) => `<b style="color:${isRed(a) ? 'var(--red)' : 'inherit'}">${a[0] === 'T' ? '10' : a[0]}${GLYPH[a[1]]}</b>`;
 const prettyCards = (arr) => arr.map(prettyA).join(' ');
 
+// ---------------------------------------------------------------- chips
+// denominated CSS chip stacks: 5 red, 25 green, 100 black, 500 purple
+const DENOMS = [[500, 'd500'], [100, 'd100'], [25, 'd25'], [5, 'd5']];
+function chipStackInto(el, amount) {
+  el.innerHTML = '';
+  let rest = Math.max(0, Math.round(amount / 5) * 5);
+  for (const [v, cls] of DENOMS) {
+    let n = Math.floor(rest / v);
+    rest -= n * v;
+    while (n > 0) {
+      const col = document.createElement('span');
+      col.className = 'col ' + cls;
+      const inCol = Math.min(4, n);
+      for (let k = 0; k < inCol; k++) col.appendChild(document.createElement('i'));
+      el.appendChild(col);
+      n -= inCol;
+    }
+  }
+  if (!el.children.length && amount > 0) {
+    const col = document.createElement('span');
+    col.className = 'col d5';
+    col.appendChild(document.createElement('i'));
+    el.appendChild(col);
+  }
+}
+
+// ---------------------------------------------------------------- flight
+// clone a node, fly it to a target, resolve when it lands
+function fly(fromEl, toEl, ms = 420) {
+  return new Promise((resolve) => {
+    const fx = $('#fx');
+    if (!fx || !fromEl || !toEl) return resolve();
+    const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect(), f = fx.getBoundingClientRect();
+    const c = fromEl.cloneNode(true);
+    c.className = (c.className || '') + ' flych';
+    c.classList.add('flych');
+    c.style.left = (a.left - f.left) + 'px';
+    c.style.top = (a.top - f.top) + 'px';
+    fx.appendChild(c);
+    requestAnimationFrame(() => {
+      c.style.transform = `translate(${b.left - a.left + (b.width - a.width) / 2}px, ${b.top - a.top}px)`;
+      c.style.opacity = '0.15';
+    });
+    setTimeout(() => { c.remove(); resolve(); }, ms);
+  });
+}
+
+// street end: the live bets fly to the pot
+async function sweepBets(preCommits) {
+  const jobs = [];
+  for (const i of [0, 1]) {
+    if (!preCommits[i]) continue;
+    const bp = $('#bet-' + i);
+    if (bp.classList.contains('show')) jobs.push(fly(bp, $('#potrow'), 400));
+  }
+  if (jobs.length) { sChip(); await Promise.all(jobs); }
+}
+
+// ---------------------------------------------------------------- log
+const logLines = [];
+function logLine(html, cls = '') {
+  logLines.push({ html, cls });
+  if (logLines.length > 400) logLines.shift();
+  const body = $('#logbody');
+  if (body) {
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.innerHTML = html;
+    body.appendChild(d);
+    while (body.children.length > 400) body.firstChild.remove();
+    body.scrollTop = body.scrollHeight;
+  }
+}
+
 // ---------------------------------------------------------------- render
 const seats = [0, 1].map((i) => ({
   root: $('#seat-' + i), nm: $(`#seat-${i} .nm`), stk: $(`#seat-${i} .stk`),
   bb: $(`#seat-${i} .bbline`), pos: $(`#seat-${i} .pos`),
-  cards: $(`#seat-${i} .cards`), said: $(`#seat-${i} .said`),
+  cards: $('#cards-' + i), said: $(`#seat-${i} .said`),
+  tbar: $(`#seat-${i} .tbar i`),
 }));
 function renderTop() {
   $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}`;
@@ -121,7 +196,11 @@ function renderHand(reveal = false) {
   // only — live street bets sit on the felt as chip stacks
   const collected = h.seats.reduce((a, s) => a + s.handCommit - s.streetCommit, 0);
   const potEl = $('#pot');
-  if (!potEl.classList.contains('winline')) potEl.textContent = collected > 0 ? `Pot ${collected.toLocaleString()}` : '';
+  if (!potEl.classList.contains('winline')) {
+    potEl.textContent = collected > 0 ? `Pot ${collected.toLocaleString()}` : '';
+    chipStackInto($('#potchips'), collected);
+  }
+  $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}${h.phase === 'act' ? ' · ' + STREETS[h.street] : ' · showdown'}`;
   const boardEl = $('#board');
   $('#table').classList.toggle('boardout', h.board.length > 0);
   if (boardEl.children.length > h.board.length) boardEl.innerHTML = '';
@@ -147,15 +226,12 @@ function renderHand(reveal = false) {
       el.cards.innerHTML = '';
       if (s.hole) for (const c of s.hole) el.cards.appendChild(show ? cardEl(ascii(c)) : backEl());
     }
+    el.root.classList.toggle('folded', s.folded);
     if (s.folded) say(i, 'folded');
     const bp = $('#bet-' + i);
     bp.classList.toggle('show', s.streetCommit > 0 && h.phase === 'act');
     bp.querySelector('.amt').textContent = s.streetCommit;
-    bp.classList.toggle('t2', s.streetCommit >= 100 && s.streetCommit < 500);
-    bp.classList.toggle('t3', s.streetCommit >= 500);
-    const stackEls = bp.querySelectorAll('.stack i');
-    const n = s.streetCommit < 25 ? 1 : s.streetCommit < 100 ? 2 : 3;
-    stackEls.forEach((c, ci) => { c.style.display = ci < n ? '' : 'none'; });
+    chipStackInto(bp.querySelector('.cstack'), s.streetCommit);
   }
 }
 const SAY_COL = { fold: '#e08a85', folded: '#e08a85', check: '#8fd0a0', call: '#8fd0a0', bet: '#e2c06a', raise: '#e2c06a' };
@@ -202,6 +278,9 @@ function heroTurn(L) {
   let hinted = false;
   liveL = L;
   liveMark = () => { hinted = true; };
+  const tb = seats[HERO].tbar;
+  tb.classList.remove('drain'); tb.style.width = '100%';
+  requestAnimationFrame(() => requestAnimationFrame(() => tb.classList.add('drain')));
   const assist = !rated && table;
   let coachMix = null;
   if (assist && coachMode) { const m = teachMix(L); if (m.known) { hinted = true; coachMix = m; } }
@@ -228,7 +307,11 @@ function heroTurn(L) {
   }
   if (coachMix) mixOnButtons(coachMix, L);
   return new Promise((resolve) => {
-    heroResolve = (a) => { bar.innerHTML = ''; heroResolve = null; liveL = null; liveMark = null; resolve({ ...a, hinted }); };
+    heroResolve = (a) => {
+      bar.innerHTML = ''; heroResolve = null; liveL = null; liveMark = null;
+      tb.classList.remove('drain'); tb.style.width = '100%';
+      resolve({ ...a, hinted });
+    };
     bF.addEventListener('click', () => heroResolve({ seat: HERO, action: 'fold' }));
     bC.addEventListener('click', () => heroResolve({ seat: HERO, action: L.callAmount === 0 ? 'check' : 'call' }));
     if (bR) bR.addEventListener('click', () => heroResolve({ seat: HERO, action: L.actions.includes('bet') ? 'bet' : 'raise', amount: L.minRaiseTo }));
@@ -394,14 +477,20 @@ async function playHand() {
   const rng = rngFromSeed(await sha256hex(`${seed}|bot`));
   const cache = {};
   const handGrades = [];
-  seats.forEach((s) => { s.said.textContent = ''; });
+  seats.forEach((s2) => { s2.said.textContent = ''; });
   $('#verdict').textContent = '';
+  logLine(`Hand #${handNo} — blinds ${SB}/${BB}`, 'lh2');
   renderHand(); sCard();
   caption(rated ? `hand ${handNo} of ${RATED_HANDS}` : '');
   await sleep(400);
 
   let guard = 0;
+  let lastStreet = 0;
   while (h.phase === 'act' && guard++ < 200) {
+    if (h.street !== lastStreet) {
+      lastStreet = h.street;
+      logLine(`<span class="lm">${STREETS[h.street].toUpperCase()}  ${h.board.map((c) => ascii(c)).join(' ')}</span>`);
+    }
     renderHand();
     const L = legal(h);
     if (L.seat === HERO) {
@@ -429,8 +518,11 @@ async function playHand() {
           handGrades.push(g);
         }
       }
+      const preCommits = h.seats.map((x) => x.streetCommit);
       act(h, { seat: a.seat, action: a.action, amount: a.amount });
       say(HERO, a.action + (a.amount ? ' ' + a.amount : ''));
+      logLine(`You ${a.action}${a.amount ? ' ' + a.amount : ''}`);
+      if (h.street !== lastStreet || h.phase !== 'act') await sweepBets(preCommits);
       if (g && !rated) {
         const pC = g.mix[mixKeyOf(a)] ?? 0;
         const pM = Math.max(...Object.values(g.mix));
@@ -455,14 +547,18 @@ async function playHand() {
         }
       }
       if (!a) a = ladderDecide(h, BOT, L, table, LEVEL_EPS[level] ?? 0, rng);
+      const preCommits = h.seats.map((x) => x.streetCommit);
       act(h, a);
       say(BOT, a.action + (a.amount ? ' ' + a.amount : ''));
+      logLine(`Bot ${a.action}${a.amount ? ' ' + a.amount : ''}`);
+      if (h.street !== lastStreet || h.phase !== 'act') await sweepBets(preCommits);
       sChip();
     }
   }
 
   // settle: the payoff scene
   const r = h.result;
+  seats.forEach((s2) => { s2.said.textContent = ''; });
   renderHand(r.showdown);
   const winSeats = new Set(r.winners.map((x) => x.seat));
   for (const i of [HERO, BOT]) {
@@ -477,9 +573,13 @@ async function playHand() {
     $('#verdict').innerHTML = Object.entries(r.evals ?? {}).map(([i, e]) =>
       `<span class="vtag ${winSeats.has(+i) ? 'vw' : 'vl'}">${+i === HERO ? 'You' : 'Bot'}: ${cap(handName(e))}</span>`).join('');
   }
+  if (r.showdown) for (const [i2, e2] of Object.entries(r.evals ?? {})) logLine(`${+i2 === HERO ? 'You' : 'Bot'} shows ${h.seats[+i2].hole.map(ascii).join(' ')} — ${handName(e2)}`);
   const heroDelta = h.seats[HERO].stack - STACK;
   net += heroDelta;
+  for (const w2 of r.winners) logLine(`<span class="lw">${w2.seat === HERO ? 'You win' : 'Bot wins'} ${w2.amount.toLocaleString()}</span>`);
   const potEl = $('#pot');
+  const winSeat = r.winners[0]?.seat;
+  if (winSeat != null && $('#potchips').children.length) await fly($('#potchips'), seats[winSeat].root, 450);
   potEl.classList.add('winline');
   potEl.textContent = r.winners.map((x) => `${x.seat === HERO ? 'You win' : 'Bot wins'} ${x.amount.toLocaleString()}`).join(' · ');
   caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
@@ -585,6 +685,10 @@ $('#b-copytext').addEventListener('click', async (e) => {
     await navigator.clipboard.writeText(transcriptText(doc));
     e.target.textContent = '✓'; setTimeout(() => { e.target.textContent = '📋 text'; }, 1200);
   } catch { caption('clipboard blocked'); }
+});
+$('#b-log').addEventListener('click', () => {
+  $('#logdrawer').classList.toggle('open');
+  $('#b-log').classList.toggle('on');
 });
 $('#b-help').addEventListener('click', () => $('#m-help').classList.add('open'));
 document.querySelectorAll('.wrap .x').forEach((x) => x.addEventListener('click', () => x.closest('.wrap').classList.remove('open')));

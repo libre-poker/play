@@ -85,21 +85,35 @@ button{cursor:pointer}
 /* ---- seats */
 .seat{
   position:absolute;left:50%;transform:translateX(-50%);
-  width:clamp(190px,24vw,250px);text-align:center;
-  background:linear-gradient(180deg, rgba(10,26,20,.90), rgba(6,16,12,.95));
-  border:1px solid rgba(212,175,105,.30);border-radius:14px;
-  padding:8px 12px 15px;color:var(--ink);
+  width:clamp(200px,25vw,258px);
+  background:linear-gradient(180deg, rgba(10,26,20,.92), rgba(6,16,12,.96));
+  border:1px solid rgba(212,175,105,.30);border-radius:26px;
+  padding:7px 14px 9px;color:var(--ink);
   box-shadow:0 8px 18px rgba(0,0,0,.45);
-  transition:border-color .2s, box-shadow .2s;
+  transition:border-color .2s, box-shadow .2s, opacity .3s;
 }
-#seat-1{top:-34px} #seat-0{bottom:-34px}
+#seat-1{top:-24px} #seat-0{bottom:-24px}
+.seat.folded{opacity:.55;filter:saturate(.6)}
+.fcards{
+  position:absolute;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;justify-content:center;
+}
+#cards-1{top:34px;z-index:4}
+#cards-0{bottom:26px;z-index:4}
+.seat{z-index:5}
+#cards-0 .card{width:calc(var(--cw)*1.16);height:calc(var(--ch)*1.16)}
+#cards-0 .card .cr{font-size:calc(var(--cw)*1.16*.34)}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:40}
+#fx .flych{position:absolute;transition:transform .42s cubic-bezier(.45,0,.35,1), opacity .42s}
 .seat.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold), 0 0 18px rgba(233,193,92,.45), 0 8px 18px rgba(0,0,0,.45)}
 .seat.winner{
     border-color:#ffd97a;
     background:linear-gradient(180deg, rgba(46,38,14,.94), rgba(24,19,8,.96));
     box-shadow:0 0 0 2px #ffd97a, 0 0 34px rgba(255,217,122,.6), 0 8px 18px rgba(0,0,0,.45);
   }
-.seat .who{display:flex;align-items:center;gap:8px;justify-content:center}
+.seat .who{display:flex;align-items:center;gap:9px}
+.seat .idc{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
+.seat .stkc{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:0}
 .seat .av{
   width:30px;height:30px;border-radius:50%;flex:none;
   background:radial-gradient(circle at 35% 30%, #3c5a4a, #1c2e24);
@@ -111,13 +125,13 @@ button{cursor:pointer}
   font-size:9.5px;font-weight:800;letter-spacing:.06em;color:#0e1a12;
   background:var(--brass);border-radius:6px;padding:1px 5px;
 }
-.seat .stk{font-size:16px;color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums;margin-left:auto}
-.seat .bbline{font-size:10.5px;color:var(--ink-mut);text-align:right;margin-top:-2px}
-.seat .cards{display:flex;gap:5px;justify-content:center;margin-top:6px}
-#seat-0 .cards{min-height:calc(var(--ch)*1.12 + 4px)}
-#seat-1 .cards{min-height:calc(var(--ch) + 4px)}
+.seat .stk{font-size:16px;color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+.seat .bbline{font-size:10.5px;color:var(--ink-mut)}
 .seat .said{
   position:absolute;left:50%;transform:translateX(-50%);bottom:-19px;z-index:6;
+}
+#seat-1 .said{bottom:auto;top:-13px}
+#seat-0 .said, #seat-1 .said{
   font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
   background:#000000cc;border:1px solid #ffffff2a;border-radius:10px;
   padding:2px 11px;white-space:nowrap;min-height:0;
@@ -128,7 +142,8 @@ button{cursor:pointer}
   background:#00000040;overflow:hidden;display:none;
 }
 .seat.active .tbar{display:block}
-.seat .tbar i{display:block;height:100%;width:72%;background:var(--gold);border-radius:2px}
+.seat .tbar i{display:block;height:100%;width:100%;background:var(--gold);border-radius:2px;transition:width .3s linear}
+.seat .tbar i.drain{transition:width 30s linear;width:0}
 .seat .dbtn{
   position:absolute;right:-13px;top:50%;transform:translateY(-50%);
   width:26px;height:26px;border-radius:50%;
@@ -137,9 +152,6 @@ button{cursor:pointer}
   font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 5px rgba(0,0,0,.55);
 }
-#seat-0 .cards .card{width:calc(var(--cw)*1.12);height:calc(var(--ch)*1.12)}
-#seat-0 .cards .card .cr{font-size:calc(var(--cw)*1.12*.34)}
-#seat-1 .cards .card{width:var(--cw);height:var(--ch)}
 
 /* ---- bets as chip stacks */
 .bet{
@@ -150,18 +162,22 @@ button{cursor:pointer}
   font-variant-numeric:tabular-nums;border:1px solid #ffffff12;
 }
 .bet.show{display:inline-flex}
-.bet .stack{position:relative;width:18px;height:22px;flex:none}
-.bet .stack i{
-  position:absolute;left:0;width:18px;height:18px;border-radius:50%;
-  background:radial-gradient(circle at 35% 32%, #d96a6a, #8f2b2b);
-  border:2px dashed #ffffffb8;box-shadow:0 1px 2px #000a;
+.cstack{display:flex;align-items:flex-end;gap:3px}
+.cstack .col{position:relative;width:20px;height:26px}
+.cstack .col i{
+  position:absolute;left:0;width:20px;height:20px;border-radius:50%;
+  border:2px dashed #ffffffc8;box-shadow:0 1.5px 3px #000c;
 }
-.bet .stack i:nth-child(1){bottom:0}
-.bet .stack i:nth-child(2){bottom:4px}
-.bet .stack i:nth-child(3){bottom:8px}
-.bet.t2 .stack i{background:radial-gradient(circle at 35% 32%, #6a94d9, #2b4f8f)}
-.bet.t3 .stack i{background:radial-gradient(circle at 35% 32%, #444, #111)}
-#bet-1{top:22%} #bet-0{bottom:31%}
+.cstack .col i:nth-child(1){bottom:0}
+.cstack .col i:nth-child(2){bottom:5px}
+.cstack .col i:nth-child(3){bottom:10px}
+.cstack .col i:nth-child(4){bottom:15px}
+.cstack .d5 i{background:radial-gradient(circle at 35% 32%, #d96a6a, #8f2b2b)}
+.cstack .d25 i{background:radial-gradient(circle at 35% 32%, #63b07a, #2c6a42)}
+.cstack .d100 i{background:radial-gradient(circle at 35% 32%, #565656, #101010)}
+.cstack .d500 i{background:radial-gradient(circle at 35% 32%, #9a6bc9, #55307f)}
+#bet-1{top:100px;left:calc(50% + 128px)}
+#bet-0{bottom:112px;left:calc(50% - 138px)}
 
 /* ---- cards */
 .card{
@@ -187,7 +203,7 @@ button{cursor:pointer}
   border:3px solid #f4efe2;
   box-shadow:inset 0 0 0 2px rgba(201,162,75,.55), 0 3px 8px rgba(0,0,0,.35);
 }
-.card.dead{opacity:.62;filter:saturate(.65)}
+.card.dead{opacity:.7;filter:saturate(.85)}
 .card.win{box-shadow:0 0 0 2px var(--gold), 0 0 16px rgba(233,193,92,.5)}
 @keyframes cardin{from{transform:translateY(-14px) rotate(-4deg);opacity:0}to{transform:none;opacity:1}}
 .card.flipin{animation:cardin .28s ease}
@@ -197,6 +213,8 @@ button{cursor:pointer}
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   display:flex;flex-direction:column;align-items:center;gap:9px;width:100%;
 }
+#potrow{display:flex;align-items:flex-end;gap:10px;min-height:30px}
+#potchips{display:flex;align-items:flex-end}
 #pot{
   display:inline-flex;align-items:center;gap:8px;
   font-size:14px;color:var(--gold);font-weight:800;min-height:24px;
@@ -245,6 +263,26 @@ button{cursor:pointer}
 }
 #actions .qbtn.on{background:var(--gold);color:#241d18;border-color:var(--gold)}
 
+/* ---- activity log drawer */
+#logdrawer{
+  position:fixed;top:47px;right:0;bottom:0;width:min(320px,80vw);z-index:15;
+  background:linear-gradient(180deg,#241d16f2,#1a140df6);
+  border-left:1px solid #ffffff1e;transform:translateX(100%);
+  transition:transform .25s ease;display:flex;flex-direction:column;
+}
+#logdrawer.open{transform:none}
+#logdrawer .lh{
+  font-size:11px;font-weight:800;letter-spacing:.18em;color:var(--ink-mut);
+  padding:12px 16px 8px;border-bottom:1px solid #ffffff14;
+}
+#logbody{
+  flex:1;overflow-y:auto;padding:10px 16px;font-size:12.5px;line-height:1.75;
+  scrollbar-width:thin;font-variant-numeric:tabular-nums;
+}
+#logbody .lw{color:#8fd0a0;font-weight:700}
+#logbody .lh2{color:var(--gold);font-weight:800;margin-top:6px}
+#logbody .lm{color:var(--ink-mut)}
+
 /* ---- modals */
 .wrap{
   position:fixed;inset:0;background:#000000aa;display:none;
@@ -282,6 +320,7 @@ a{color:#5fc7d6}
   <button class="chip" id="b-rating" title="Your Glicko-2 rating, moved only by rated matches"></button>
   <button class="chip" id="b-leak" title="Live leak meter: this session's river EV loss, bb/100 (key 5)">🎯</button>
   <button class="chip" id="b-score" title="The scorecard — every hand, its cards, and what the rivers cost">📋</button>
+  <button class="chip" id="b-log" title="The activity log — every action, every result">☰ log</button>
   <span class="div"></span>
   <button class="chip" id="b-rated" title="Rated: 40 hands, no assistance, rating on the line. Casual: everything allowed."></button>
   <span class="div"></span>
@@ -293,24 +332,25 @@ a{color:#5fc7d6}
   <div id="tablewrap">
   <div id="table"></div>
     <div class="seat" id="seat-1">
-      <div class="who"><span class="av">🤖</span><span class="nm"></span><span class="pos"></span><span class="stk"></span></div>
-      <div class="bbline"></div>
-      <div class="cards"></div><div class="said"></div>
+      <div class="who"><span class="av">🤖</span><span class="idc"><span class="nm"></span><span class="pos"></span></span><span class="stkc"><span class="stk"></span><span class="bbline"></span></span></div>
+      <div class="said"></div>
       <div class="tbar"><i></i></div>
     </div>
-    <div class="bet" id="bet-1"><span class="stack"><i></i><i></i><i></i></span><span class="amt"></span></div>
-    <div class="bet" id="bet-0"><span class="stack"><i></i><i></i><i></i></span><span class="amt"></span></div>
+    <div class="fcards" id="cards-1"></div>
+    <div class="bet" id="bet-1"><span class="cstack"></span><span class="amt"></span></div>
+    <div class="bet" id="bet-0"><span class="cstack"></span><span class="amt"></span></div>
     <div id="mid">
-      <div id="pot"></div>
+      <div id="potrow"><span id="potchips"></span><div id="pot"></div></div>
       <div id="board"></div>
       <div id="verdict"></div>
     </div>
+    <div class="fcards" id="cards-0"></div>
     <div class="seat" id="seat-0">
-      <div class="who"><span class="av">👤</span><span class="nm"></span><span class="pos"></span><span class="stk"></span></div>
-      <div class="bbline"></div>
-      <div class="cards"></div><div class="said"></div>
+      <div class="who"><span class="av">👤</span><span class="idc"><span class="nm"></span><span class="pos"></span></span><span class="stkc"><span class="stk"></span><span class="bbline"></span></span></div>
+      <div class="said"></div>
       <div class="tbar"><i></i></div>
     </div>
+    <div id="fx"></div>
   </div>
 </div>
 
@@ -336,6 +376,8 @@ a{color:#5fc7d6}
   </h2>
   <div id="hand-body" style="font-size:15px;line-height:1.75;max-height:60vh;overflow:auto;padding-right:12px;scrollbar-width:thin"></div>
 </div></div>
+
+<div id="logdrawer"><div class="lh">ACTIVITY LOG</div><div id="logbody"></div></div>
 
 <div class="wrap" id="m-help"><div class="modal">
   <button class="x">✕</button>
