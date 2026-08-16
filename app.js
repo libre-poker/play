@@ -821,7 +821,7 @@ function openRoomChannel() {
     let entry; try { entry = JSON.parse(e.data); } catch { return; }
     const m = entry.msg;
     if (!m || m.from === myPid) return;
-    handleRoomMsg(m);
+    handleRoomMsg(m, entry.t || 0);
   };
   es.onerror = () => { if (NET.on) caption('connection lost — refresh to rejoin'); };
 }
@@ -835,15 +835,21 @@ function nextMsg(pred, ms = 60000) {
     setTimeout(() => reject(new Error('timeout waiting for opponent')), ms);
   });
 }
-function handleRoomMsg(m) {
+function handleRoomMsg(m, t = 0) {
+  if (m.type === 'hello' && NET.probing) {
+    // probing: record live-looking hellos, commit to nothing yet
+    if (Date.now() - t < 90000) { NET.probeHello = { from: m.from, name: m.name || null }; }
+    return;
+  }
   if (m.type === 'hello' && !NET.oppPid) {
     NET.oppPid = m.from;
     NET.oppName = m.name || null;
+    clearInterval(NET.heartbeat);
     roomSend({ type: 'hello2', name: 'Guest' });
     if (NET.host) startOnlineMatch();
     return;
   }
-  if (m.type === 'hello2' && !NET.oppPid) { NET.oppPid = m.from; NET.oppName = m.name || null; return; }
+  if (m.type === 'hello2' && !NET.oppPid) { NET.oppPid = m.from; NET.oppName = m.name || null; clearInterval(NET.heartbeat); return; }
   for (let i = netWaiters.length - 1; i >= 0; i--) {
     if (netWaiters[i].pred(m)) {
       const w = netWaiters[i]; netWaiters.splice(i, 1); w.resolve(m);
@@ -896,7 +902,9 @@ async function playOnlineHand() {
     NET.token = mine.token;
     await roomSend({ type: 'start', handNo: NET.handNo, sid: S.sid, root: S.root, claim: S.claims[NET.oppPid] });
   } else {
-    const m = await nextMsg((x) => x.type === 'start' && x.handNo === NET.handNo);
+    caption('waiting for the host to deal…');
+    const m = await nextMsg((x) => x.type === 'start' && x.handNo === NET.handNo, 10 * 60000);
+    caption('');
     NET.sid = m.sid; NET.root = m.root;
     const mine = await cpost('/claim', { sid: m.sid, party: myPid, code: m.claim });
     if (!mine.token) { caption('⚠ claim refused — host may be cheating; leaving'); NET.on = false; return; }
@@ -1063,11 +1071,16 @@ async function startOnlineMatch() {
   caption('online match over — <a href="?">back to the bot</a>');
 }
 
+function startHeartbeat() {
+  clearInterval(NET.heartbeat);
+  NET.heartbeat = setInterval(() => { if (!NET.oppPid) roomSend({ type: 'hello' }); }, 45000);
+}
 async function hostExistingRoom(code) {
   NET.room = code.toUpperCase(); NET.host = true;
   $('#m-online').classList.add('open');
   openRoomChannel();
   await roomSend({ type: 'hello' });
+  startHeartbeat();
   const link = `${location.origin}${location.pathname}?join=${NET.room}`;
   netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
     `<code style="font-size:12px;user-select:all">${link}</code> ` +
@@ -1086,21 +1099,49 @@ async function hostExistingRoom(code) {
 async function enterLobby(joinCode) {
   $('#m-online').classList.add('open');
   if (joinCode) {
-    NET.room = joinCode.toUpperCase(); NET.host = false;
+    NET.room = joinCode.toUpperCase();
     netStatus(`joining table <b>${NET.room}</b>…`);
+    NET.probing = true; NET.probeHello = null;
     openRoomChannel();
-    await roomSend({ type: 'hello' });
-    NET.on = true;
+    await new Promise((r) => setTimeout(r, 2500));   // let the replay land
+    NET.probing = false;
     matchOpen = false;
-    netStatus('waiting for the host to deal…');
-    startOnlineGuestLoop();
+    if (NET.probeHello) {
+      // a live host is here: take the guest seat
+      NET.host = false;
+      NET.oppPid = NET.probeHello.from;
+      NET.oppName = NET.probeHello.name;
+      await roomSend({ type: 'hello' });
+      NET.on = true;
+      netStatus('host found — waiting for the deal…');
+      startOnlineGuestLoop();
+    } else {
+      // empty table: the seat is yours — host it
+      NET.host = true;
+      await roomSend({ type: 'hello' });
+      startHeartbeat();
+      const link = `${location.origin}${location.pathname}?join=${NET.room}`;
+      netStatus(`this table was empty — <b>you are hosting ${NET.room}</b>.<br>` +
+        `share: <code style="font-size:12px;user-select:all">${link}</code> ` +
+        `<button id="b-copylink" class="mbtn" style="background:var(--gold);color:#1c1812">📋 copy</button><br>` +
+        `or <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon a bot</button><br>waiting…`);
+      document.getElementById('b-copylink').addEventListener('click', async (e) => {
+        try { await navigator.clipboard.writeText(link); e.target.textContent = '✓ copied'; }
+        catch { e.target.textContent = 'select it manually'; }
+      });
+      document.getElementById('b-summon').addEventListener('click', (e) => {
+        roomSend({ type: 'summon', level });
+        e.target.textContent = '🤖 summoned — waiting for a bot…';
+      });
+    }
     return;
   }
   $('#b-maketable').onclick = async () => {
-    const r = await cpost('/room/create', {});
+    const r = await cpost('/room/create', { name: 'table', game: 'holdem-hu' });
     NET.room = r.room; NET.host = true;
     openRoomChannel();
     await roomSend({ type: 'hello' });
+    startHeartbeat();
     const link = `${location.origin}${location.pathname}?join=${NET.room}`;
     netStatus(`table <b>${NET.room}</b> — send your friend this link:<br>` +
       `<code style="font-size:12px;user-select:all">${link}</code> ` +
