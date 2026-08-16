@@ -1172,7 +1172,28 @@ async function startOnlineMatch() {
         }, 250);
       });
       caption('');
-      // honor whatever the pill says for the match that begins now
+      // the choice lives on the table, not behind a modal: nothing deals
+      // until the player picks the next match's mode
+      await new Promise((resolve) => {
+        const bar = $('#actions');
+        bar.innerHTML = '';
+        const bn = document.createElement('button');
+        bn.id = 'b-next';
+        const bs = document.createElement('button');
+        bs.id = 'b-call';
+        const label = () => {
+          bn.textContent = rated ? '🏅 NEXT RATED MATCH' : '▶ NEXT MATCH';
+          bs.textContent = rated ? '☕ SWITCH TO CASUAL' : '🏅 SWITCH TO RATED';
+        };
+        label();
+        bn.addEventListener('click', () => { bar.innerHTML = ''; resolve(); });
+        bs.addEventListener('click', () => {
+          rated = !rated;
+          localStorage.setItem('lp.rated', rated ? '1' : '0');
+          label(); renderTop();
+        });
+        bar.append(bn, bs);
+      });
       NET.rated = rated && NET.summon?.bot === 'ladder' && !!NET.summon?.level
         && (NET.oppAgent || '').startsWith('librepoker-ladder');
       renderTop();
