@@ -27,7 +27,7 @@ let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
 let coachMode = localStorage.getItem('lp.coach') === '1';
-let fourColor = localStorage.getItem('lp.fourc') === '1';
+let fourColor = localStorage.getItem('lp.fourc') !== '0';   // default on: a trainer reads suits fast
 let commit8 = '';                 // sha256(seed) prefix — the shuffle's promise
 let rating = freshRating();
 try { rating = Object.assign(freshRating(), JSON.parse(localStorage.getItem('lp.rating') || '{}')); } catch { /* fresh */ }
@@ -704,6 +704,7 @@ $('#b-log').addEventListener('click', () => {
   $('#b-log').classList.toggle('on');
 });
 document.body.classList.toggle('fourc', fourColor);
+$('#b-fourc')?.classList.toggle('on', fourColor);
 $('#b-fourc')?.addEventListener('click', () => {
   fourColor = !fourColor;
   localStorage.setItem('lp.fourc', fourColor ? '1' : '0');
