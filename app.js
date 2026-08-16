@@ -328,6 +328,9 @@ document.addEventListener('keydown', (e) => {
     if (coachMode && heroResolve && liveL && table) {
       const m = teachMix(liveL);
       if (m.known) { mixOnButtons(m, liveL); liveMark?.(); document.querySelector('#actions .qbtn')?.classList.add('on'); }
+    } else if (!coachMode) {
+      document.querySelectorAll('#actions .sub').forEach((el) => el.remove());
+      document.querySelector('#actions .qbtn')?.classList.remove('on');
     }
     return;
   }
