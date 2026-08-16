@@ -22,7 +22,7 @@ const HERO = 0, BOT = 1;
 const SB = 10, BB = 20, STACK = 2000;
 const RATED_HANDS = 40;
 const LEVEL_EPS = { 2: .45, 3: .3, 4: .2, 5: .12, 6: .06, 7: 0 };
-let level = Math.min(7, Math.max(2, +(localStorage.getItem('lp.level') || 5)));
+let level = Math.min(7, Math.max(2, +(localStorage.getItem('lp.level') || 7)));
 let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
@@ -34,6 +34,7 @@ let table = null;                 // the champion strategy
 let h = null;                     // live engine hand
 let handNo = 0;                   // 1-based, this session/match
 let heroResolve = null;
+let liveL = null, liveMark = null;   // the decision currently on the buttons
 let sessionSeed = '';
 let docs = [];                    // finished hands as Hand documents
 let net = 0;                      // hero chips won this match/session
@@ -79,7 +80,7 @@ const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
 function cardEl(a) {
   const d = document.createElement('div');
   d.className = 'card flipin' + (isRed(a) ? ' red' : '');
-  d.innerHTML = `<div class="r">${a[0] === 'T' ? '10' : a[0]}</div><div class="s">${GLYPH[a[1]]}</div>`;
+  d.innerHTML = `<div class="cr">${a[0] === 'T' ? '10' : a[0]}<b>${GLYPH[a[1]]}</b></div><div class="cp">${GLYPH[a[1]]}</div>`;
   return d;
 }
 function backEl() { const d = document.createElement('div'); d.className = 'card back'; return d; }
@@ -87,11 +88,13 @@ const prettyA = (a) => `<b style="color:${isRed(a) ? 'var(--red)' : 'inherit'}">
 const prettyCards = (arr) => arr.map(prettyA).join(' ');
 
 // ---------------------------------------------------------------- render
-const seats = [
-  { root: $('#seat-0'), nm: $('#seat-0 .nm'), st: $('#seat-0 .st'), cards: $('#seat-0 .cards'), said: $('#seat-0 .said') },
-  { root: $('#seat-1'), nm: $('#seat-1 .nm'), st: $('#seat-1 .st'), cards: $('#seat-1 .cards'), said: $('#seat-1 .said') },
-];
+const seats = [0, 1].map((i) => ({
+  root: $('#seat-' + i), nm: $(`#seat-${i} .nm`), stk: $(`#seat-${i} .stk`),
+  bb: $(`#seat-${i} .bbline`), pos: $(`#seat-${i} .pos`),
+  cards: $(`#seat-${i} .cards`), said: $(`#seat-${i} .said`),
+}));
 function renderTop() {
+  $('#tmeta').textContent = `limit hold'em · ${SB}/${BB} · heads-up${handNo ? ` · hand #${handNo}` : ''}`;
   $('#b-level').textContent = `Lv ${level}`;
   $('#b-rating').textContent = `⚡ ${Math.round(rating.r)}`;
   $('#b-rated').textContent = rated ? `🏅 rated ${Math.min(handNo, RATED_HANDS)}/${RATED_HANDS}` : '☕ casual';
@@ -107,17 +110,20 @@ function leakOf(ds) {
 }
 function renderLeak() {
   const b = $('#b-leak');
-  if (!leakLive) { b.textContent = '🎯'; b.classList.remove('leak-ok', 'leak-bad'); return; }
   const lk = leakOf(docs);
-  b.textContent = `🎯 ${lk.toFixed(1)} bb/100`;
+  b.textContent = leakLive ? `leak ${lk.toFixed(1)} bb/100` : `leak ${lk.toFixed(1)}`;
   b.classList.toggle('leak-ok', lk < 5);
   b.classList.toggle('leak-bad', lk >= 5);
 }
 function renderHand(reveal = false) {
   if (!h) return;
-  const pot = h.seats.reduce((a, s) => a + s.handCommit, 0);
-  $('#pot').textContent = pot > 0 ? `pot ${pot}` : '';
+  // the frame's arithmetic must not lie: the pot pill shows collected chips
+  // only — live street bets sit on the felt as chip stacks
+  const collected = h.seats.reduce((a, s) => a + s.handCommit - s.streetCommit, 0);
+  const potEl = $('#pot');
+  if (!potEl.classList.contains('winline')) potEl.textContent = collected > 0 ? `Pot ${collected.toLocaleString()}` : '';
   const boardEl = $('#board');
+  $('#table').classList.toggle('boardout', h.board.length > 0);
   if (boardEl.children.length > h.board.length) boardEl.innerHTML = '';
   for (let bi = boardEl.children.length; bi < h.board.length; bi++) {
     boardEl.appendChild(cardEl(ascii(h.board[bi])));
@@ -125,8 +131,10 @@ function renderHand(reveal = false) {
   }
   for (const i of [HERO, BOT]) {
     const s = h.seats[i], el = seats[i];
-    el.nm.textContent = i === HERO ? 'You' : 'Level ' + level;
-    el.st.textContent = s.stack;
+    el.nm.textContent = i === HERO ? 'You' : 'Bot';
+    el.stk.textContent = s.stack.toLocaleString();
+    el.bb.textContent = `${Math.round(s.stack / BB)} BB`;
+    el.pos.textContent = h.button === i ? 'SB' : 'BB';
     el.root.classList.toggle('active', h.phase === 'act' && h.toAct === i);
     let db = el.root.querySelector('.dbtn');
     if (h.button === i) {
@@ -142,7 +150,12 @@ function renderHand(reveal = false) {
     if (s.folded) say(i, 'folded');
     const bp = $('#bet-' + i);
     bp.classList.toggle('show', s.streetCommit > 0 && h.phase === 'act');
-    bp.querySelector('span').textContent = s.streetCommit;
+    bp.querySelector('.amt').textContent = s.streetCommit;
+    bp.classList.toggle('t2', s.streetCommit >= 100 && s.streetCommit < 500);
+    bp.classList.toggle('t3', s.streetCommit >= 500);
+    const stackEls = bp.querySelectorAll('.stack i');
+    const n = s.streetCommit < 25 ? 1 : s.streetCommit < 100 ? 2 : 3;
+    stackEls.forEach((c, ci) => { c.style.display = ci < n ? '' : 'none'; });
   }
 }
 const SAY_COL = { fold: '#e08a85', folded: '#e08a85', check: '#8fd0a0', call: '#8fd0a0', bet: '#e2c06a', raise: '#e2c06a' };
@@ -167,14 +180,15 @@ function mixNames(mix, L) {
 }
 function mixOnButtons(mix, L) {
   const target = { k: $('#b-call'), b: $('#b-raise'), f: $('#b-fold') };
+  const pMax = Math.max(...mix.probs);
   mix.acts.forEach((ac, i) => {
     const btn = target[ac];
     if (!btn) return;
-    let p = btn.querySelector('.pct');
-    if (!p) { p = document.createElement('span'); p.className = 'pct'; btn.appendChild(p); }
+    let p = btn.querySelector('.sub');
+    if (!p) { p = document.createElement('span'); p.className = 'sub'; btn.appendChild(p); }
     const v = Math.round(mix.probs[i] * 100);
     p.textContent = v + '%';
-    p.classList.toggle('zero', v === 0);
+    p.classList.toggle('hot', mix.probs[i] >= pMax - 1e-9);
   });
 }
 const gradeWord = (pChosen, pMax) =>
@@ -186,6 +200,8 @@ function heroTurn(L) {
   bar.innerHTML = '';
   caption('');
   let hinted = false;
+  liveL = L;
+  liveMark = () => { hinted = true; };
   const assist = !rated && table;
   let coachMix = null;
   if (assist && coachMode) { const m = teachMix(L); if (m.known) { hinted = true; coachMix = m; } }
@@ -195,7 +211,7 @@ function heroTurn(L) {
     bh.addEventListener('click', () => {
       const m = teachMix(L);
       if (!m.known) { caption('no line for this spot'); return; }
-      hinted = true; mixOnButtons(m, L); bh.disabled = true;
+      hinted = true; mixOnButtons(m, L); bh.classList.add('on'); bh.disabled = true;
       if (m.solved) caption('🧭 exact river solve');
     });
     bar.appendChild(bh);
@@ -212,7 +228,7 @@ function heroTurn(L) {
   }
   if (coachMix) mixOnButtons(coachMix, L);
   return new Promise((resolve) => {
-    heroResolve = (a) => { bar.innerHTML = ''; heroResolve = null; resolve({ ...a, hinted }); };
+    heroResolve = (a) => { bar.innerHTML = ''; heroResolve = null; liveL = null; liveMark = null; resolve({ ...a, hinted }); };
     bF.addEventListener('click', () => heroResolve({ seat: HERO, action: 'fold' }));
     bC.addEventListener('click', () => heroResolve({ seat: HERO, action: L.callAmount === 0 ? 'check' : 'call' }));
     if (bR) bR.addEventListener('click', () => heroResolve({ seat: HERO, action: L.actions.includes('bet') ? 'bet' : 'raise', amount: L.minRaiseTo }));
@@ -220,7 +236,18 @@ function heroTurn(L) {
 }
 document.addEventListener('keydown', (e) => {
   audio();
-  if (e.key === '4') { if (!rated) { coachMode = !coachMode; localStorage.setItem('lp.coach', coachMode ? '1' : '0'); caption(coachMode ? '🎓 coach on' : ''); } return; }
+  if (e.key === '4') {
+    if (rated) return;
+    coachMode = !coachMode;
+    localStorage.setItem('lp.coach', coachMode ? '1' : '0');
+    caption(coachMode ? '🎓 coach on' : '🎓 coach off');
+    setTimeout(() => { if ($('#caption').textContent.startsWith('🎓')) caption(''); }, 1000);
+    if (coachMode && heroResolve && liveL && table) {
+      const m = teachMix(liveL);
+      if (m.known) { mixOnButtons(m, liveL); liveMark?.(); document.querySelector('#actions .qbtn')?.classList.add('on'); }
+    }
+    return;
+  }
   if (e.key === '5') { leakLive = !leakLive; localStorage.setItem('lp.leak', leakLive ? '1' : '0'); renderTop(); return; }
   if (!heroResolve) return;
   if (e.key === '1' || e.key === 'f') $('#b-fold')?.click();
@@ -434,20 +461,43 @@ async function playHand() {
     }
   }
 
-  // settle
+  // settle: the payoff scene
   const r = h.result;
   renderHand(r.showdown);
+  const winSeats = new Set(r.winners.map((x) => x.seat));
+  for (const i of [HERO, BOT]) {
+    seats[i].root.classList.toggle('winner', winSeats.has(i));
+    if (r.showdown) {
+      const won = winSeats.has(i);
+      seats[i].cards.querySelectorAll('.card').forEach((c) => c.classList.add(won ? 'win' : 'dead'));
+    }
+  }
   if (r.showdown) {
-    const names = Object.entries(r.evals ?? {}).map(([i, e]) => `${+i === HERO ? 'you' : 'it'}: ${handName(e)}`).join(' · ');
-    $('#verdict').textContent = names;
+    const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    $('#verdict').innerHTML = Object.entries(r.evals ?? {}).map(([i, e]) =>
+      `<span class="vtag ${winSeats.has(+i) ? 'vw' : 'vl'}">${+i === HERO ? 'You' : 'Bot'}: ${cap(handName(e))}</span>`).join('');
   }
   const heroDelta = h.seats[HERO].stack - STACK;
   net += heroDelta;
-  const w = r.winners.map((x) => `${x.seat === HERO ? 'You win' : 'Level ' + level + ' wins'} ${x.amount}`).join(' · ');
-  caption(`${w}${heroDelta !== 0 ? ` · net ${net >= 0 ? '+' : ''}${net}` : ''}`);
+  const potEl = $('#pot');
+  potEl.classList.add('winline');
+  potEl.textContent = r.winners.map((x) => `${x.seat === HERO ? 'You win' : 'Bot wins'} ${x.amount.toLocaleString()}`).join(' · ');
+  caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
   docs.push(buildDoc(h, seed, handGrades));
   renderTop();
-  await sleep(r.showdown ? 2000 : 1200);
+  // a visible way onward, always — click or let it auto-deal
+  await new Promise((resolve) => {
+    const bar = $('#actions');
+    bar.innerHTML = '';
+    const bn = document.createElement('button');
+    bn.id = 'b-next'; bn.textContent = 'NEXT HAND';
+    bn.addEventListener('click', () => resolve());
+    bar.appendChild(bn);
+    setTimeout(resolve, r.showdown ? 2600 : 1500);
+  });
+  $('#actions').innerHTML = '';
+  $('#pot').classList.remove('winline');
+  for (const i of [HERO, BOT]) seats[i].root.classList.remove('winner');
 }
 // helper: which mix key did the hero's action land on
 function mixKeyOf(a) {
@@ -541,6 +591,66 @@ document.querySelectorAll('.wrap .x').forEach((x) => x.addEventListener('click',
 document.querySelectorAll('.wrap').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); }));
 document.addEventListener('pointerdown', audio, { once: true });
 
+// ---------------------------------------------------------------- shot mode
+// Deterministic tableaux for the visual-critic rig: ?shot=preflop|flop|showdown
+// Fixed seed, scripted actions, no timers, no sound — the same pixels forever.
+async function shotMode(name) {
+  soundOn = false;
+  handNo = 7;
+  renderTop();
+  const seed = await sha256hex('shot|7');
+  h = newHand({
+    seats: [{ name: 'You', stack: 2000 }, { name: `Level ${level}`, stack: 2000 }],
+    button: 1, sb: SB, bb: BB, seedHex: seed, limit: true,
+  });
+  const SCRIPTS = {
+    preflop: ['r40'],
+    flop: ['r40', 'c', 'k', 'b20'],
+    showdown: ['r40', 'c', 'k', 'b20', 'c', 'k', 'k', 'b40', 'c'],
+  };
+  const lastAct = {};
+  for (const step of SCRIPTS[name] ?? []) {
+    const L = legal(h);
+    let a;
+    if (step === 'c') a = { seat: L.seat, action: L.callAmount > 0 ? 'call' : 'check' };
+    else if (step === 'k') a = { seat: L.seat, action: 'check' };
+    else a = { seat: L.seat, action: L.actions.includes('bet') ? 'bet' : 'raise', amount: +step.slice(1) };
+    act(h, a);
+    lastAct[a.seat] = a.action + (a.amount ? ' ' + a.amount : '');
+  }
+  for (const [seat2, txt] of Object.entries(lastAct)) say(+seat2, txt);
+  if (h.phase === 'done') {
+    renderHand(true);
+    const winSeats = new Set(h.result.winners.map((x) => x.seat));
+    for (const i of [HERO, BOT]) {
+      seats[i].root.classList.toggle('winner', winSeats.has(i));
+      const won = winSeats.has(i);
+      seats[i].cards.querySelectorAll('.card').forEach((c) => c.classList.add(won ? 'win' : 'dead'));
+    }
+    const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    $('#verdict').innerHTML = Object.entries(h.result.evals ?? {}).map(([i, e]) =>
+      `<span class="vtag ${winSeats.has(+i) ? 'vw' : 'vl'}">${+i === HERO ? 'You' : 'Bot'}: ${cap(handName(e))}</span>`).join('');
+    const potEl = $('#pot');
+    potEl.classList.add('winline');
+    potEl.textContent = h.result.winners.map((x) => `${x.seat === HERO ? 'You win' : 'Bot wins'} ${x.amount}`).join(' · ');
+    const bar = $('#actions');
+    const bn = document.createElement('button');
+    bn.id = 'b-next'; bn.textContent = 'NEXT HAND';
+    bar.appendChild(bn);
+  } else {
+    renderHand();
+    const L = legal(h);
+    if (L.seat === HERO) {
+      heroTurn(L);
+      if (table) {
+        const m = teachMix(L);
+        if (m.known) mixOnButtons(m, L);
+        document.querySelector('#actions .qbtn')?.classList.add('on');
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------- boot
 (async () => {
   renderTop();
@@ -555,5 +665,7 @@ document.addEventListener('pointerdown', audio, { once: true });
     caption('strategy failed to load — refresh to retry');
     return;
   }
+  const shot = new URLSearchParams(location.search).get('shot');
+  if (shot) { shotMode(shot); return; }
   newMatch();
 })();
