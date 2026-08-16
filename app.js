@@ -1157,6 +1157,14 @@ async function startOnlineMatch() {
     try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
     if (NET.rated && handNo >= RATED_HANDS && NET.on) {
       await matchEnd();
+      // the match is settled — hold the table until the scorecard is read
+      caption('match settled — close the scorecard for the next 40');
+      await new Promise((r) => {
+        const t = setInterval(() => {
+          if (!$('#m-score').classList.contains('open')) { clearInterval(t); r(); }
+        }, 250);
+      });
+      caption('');
       docs = []; net = 0; handNo = 0;    // the next 40 begin fresh
       renderTop();
     }
