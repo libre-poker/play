@@ -640,12 +640,16 @@ async function matchEnd() {
   renderTop();
   renderScorecard();
   $('#score-note').textContent =
-    `Rated match vs level ${level}: ${net >= 0 ? '+' : ''}${net} chips over ${RATED_HANDS} hands — ` +
+    `Rated match vs level ${level}${NET.on ? ' (online, croupier-dealt)' : ''}: ${net >= 0 ? '+' : ''}${net} chips over ${RATED_HANDS} hands — ` +
     `rating ${before} → ${after} (${after - before >= 0 ? '+' : ''}${after - before}). Click a hand for the transcript.`;
   $('#m-score').classList.add('open');
   matchOpen = false;
   caption(`match over — <a href="#" id="again">deal the next match</a>`);
-  $('#again').addEventListener('click', (e) => { e.preventDefault(); newMatch(); });
+  $('#again').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (NET.on) { $('#m-score').classList.remove('open'); return; }
+    newMatch();
+  });
 }
 async function newMatch() {
   docs = []; net = 0; handNo = 0;
@@ -667,12 +671,20 @@ async function run() {
 
 // ---------------------------------------------------------------- wiring
 $('#b-level').addEventListener('click', () => {
-  if (rated && handNo > 0 && matchOpen) { caption('level locks during a rated match'); return; }
+  if (rated && handNo > 0 && (matchOpen || NET.on)) { caption('level locks during a rated match'); return; }
   level = level >= 7 ? 2 : level + 1;
   localStorage.setItem('lp.level', level);
   renderTop(); renderHand();
 });
 $('#b-rated').addEventListener('click', () => {
+  if (NET.on) {
+    if (NET.rated && handNo > 0) { caption('rated locks during the match'); return; }
+    rated = !rated;
+    localStorage.setItem('lp.rated', rated ? '1' : '0');
+    caption(rated ? '🏅 rated applies from your next summon' : '☕ casual');
+    renderTop();
+    return;
+  }
   rated = !rated;
   localStorage.setItem('lp.rated', rated ? '1' : '0');
   newMatch();
@@ -693,7 +705,7 @@ $('#b-leak').addEventListener('click', () => {
   renderTop();
 });
 $('#b-score').addEventListener('click', () => {
-  if (rated && matchOpen && handNo > 0) { caption('the scorecard opens when the rated match ends'); return; }
+  if (rated && handNo > 0 && (matchOpen || (NET.on && NET.rated))) { caption('the scorecard opens when the rated match ends'); return; }
   renderScorecard();
   $('#m-score').classList.add('open');
 });
@@ -804,7 +816,8 @@ async function shotMode(name) {
 // Casual heads-up vs a human: the croupier deals (committed shuffle,
 // per-envelope proofs verified right here), a generic room relays the
 // chatter, and both browsers' engines referee each other's legality.
-// Server-dealt, casual only, never rated — the constitution's §6 lane.
+// Server-dealt, honestly labeled — the constitution's §6 lane. Humans are
+// casual; a summoned ladder bot with rated on plays for the rating.
 const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
 const myPid = (() => {
   // per-tab identity (sessionStorage): lets one human test both seats in
@@ -842,6 +855,8 @@ const SUMMON_UI = `<select id="summon-pick" style="background:#00000042;color:va
 function wireSummon() {
   document.getElementById('b-summon')?.addEventListener('click', (e) => {
     const [bot, lvl] = (document.getElementById('summon-pick')?.value || 'ladder:7').split(':');
+    NET.summon = { bot, level: +lvl || null };
+    if (bot === 'ladder' && +lvl) { level = +lvl; localStorage.setItem('lp.level', level); }
     roomSend({ type: 'summon', bot, level: +lvl || undefined });
     e.target.textContent = '🤖 summoned…';
   });
@@ -877,12 +892,13 @@ function handleRoomMsg(m, t = 0) {
   if (m.type === 'hello' && !NET.oppPid && m.re === myPid) {
     NET.oppPid = m.from;
     NET.oppName = m.name || null;
+    NET.oppAgent = m.agent || null;
     clearInterval(NET.heartbeat);
     roomSend({ type: 'hello2', name: 'Guest', re: m.from });
     if (NET.host) startOnlineMatch();
     return;
   }
-  if (m.type === 'hello2' && !NET.oppPid && m.re === myPid) { NET.oppPid = m.from; NET.oppName = m.name || null; clearInterval(NET.heartbeat); return; }
+  if (m.type === 'hello2' && !NET.oppPid && m.re === myPid) { NET.oppPid = m.from; NET.oppName = m.name || null; NET.oppAgent = m.agent || null; clearInterval(NET.heartbeat); return; }
   if (m.type === 'hello' || m.type === 'hello2') return;
   for (let i = netWaiters.length - 1; i >= 0; i--) {
     if (netWaiters[i].pred(m)) {
@@ -925,6 +941,7 @@ function revealsReady(idx) {
 const mySeatOnline = () => NET.host ? 0 : 1;
 async function playOnlineHand() {
   NET.handNo++;
+  handNo++;
   const meSeat = mySeatOnline(), oppSeat = 1 - meSeat;
   HERO_SEAT = meSeat;
   const oppName = NET.oppName || ('Guest ' + (NET.oppPid || '').slice(0, 4));
@@ -1127,13 +1144,22 @@ function renderOnline(viewSeat, reveal = false) {
 async function startOnlineMatch() {
   NET.on = true;
   matchOpen = false;                      // stop the bot loop after its hand
+  // rated online: only vs the summoned ladder — the anchored opponent whose
+  // rating we know. Humans and characters stay casual (no anchor, no trust).
+  NET.rated = rated && NET.summon?.bot === 'ladder' && !!NET.summon?.level
+    && (NET.oppAgent || '').startsWith('librepoker-ladder');
   netStatus(`connected — playing`);
   $('#m-online').classList.remove('open');
   docs = []; net = 0; handNo = 0;
   renderTop();
-  caption('opponent connected');
+  caption(NET.rated ? `🏅 rated match vs the Lv ${level} ladder — ${RATED_HANDS} hands, no assistance` : 'opponent connected');
   while (NET.on) {
     try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
+    if (NET.rated && handNo >= RATED_HANDS && NET.on) {
+      await matchEnd();
+      docs = []; net = 0; handNo = 0;    // the next 40 begin fresh
+      renderTop();
+    }
   }
   HERO_SEAT = 0;
   caption('online match over — <a href="?">back to the bot</a>');
