@@ -62,8 +62,9 @@ export function glicko2(player, results) {
 // to 150 simulated 20-hand matches per pairing (2026-08, strategy iteration
 // in play/strategy-hulimit.json), smoothed monotone — the top three rungs
 // are genuinely close, the cliff is Lv5 down to Lv2
-// centered so the reigning champion holds 2500 — future promoted champions
-// anchor above it, and an essentially-solved strategy is the ~3000 GOAT.
-// Only gaps predict outcomes; the center is a story we choose to tell.
-export const LEVEL_RATING = { 2: 2370, 3: 2420, 4: 2455, 5: 2485, 6: 2490, 7: 2500 };
+// Champion II (EHS2, 296M iters) holds 2503 — the founder's 2500 plus its
+// measured +1.41 bb/100 gauntlet margin. Lower rungs re-fit to 1,050 fresh
+// 20-hand matches (2026-08-17), smoothed monotone. Future champions anchor
+// above; the essentially-solved strategy is the distant ~3000 GOAT.
+export const LEVEL_RATING = { 2: 2401, 3: 2443, 4: 2469, 5: 2490, 6: 2496, 7: 2503 };
 export const LEVEL_RD = 60;
