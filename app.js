@@ -1192,8 +1192,9 @@ async function startOnlineMatch() {
     if (NET.rated && handNo >= RATED_HANDS && NET.on) {
       await matchEnd();
       // between matches: counters reset NOW so the rated pill unlocks while
-      // the scorecard is up — this is the moment to switch to casual
-      docs = []; net = 0; handNo = 0;
+      // the scorecard is up — but the docs stay: the open scorecard's rows
+      // must keep their transcripts clickable until the player moves on
+      net = 0; handNo = 0;
       renderTop();
       caption('match settled — 🏅/☕ can be switched now; close the scorecard to play on');
       await new Promise((r) => {
@@ -1216,7 +1217,7 @@ async function startOnlineMatch() {
           bs.textContent = rated ? '☕ SWITCH TO CASUAL' : '🏅 SWITCH TO RATED';
         };
         label();
-        bn.addEventListener('click', () => { bar.innerHTML = ''; resolve(); });
+        bn.addEventListener('click', () => { bar.innerHTML = ''; docs = []; resolve(); });
         bs.addEventListener('click', () => {
           rated = !rated;
           localStorage.setItem('lp.rated', rated ? '1' : '0');
