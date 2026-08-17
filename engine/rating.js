@@ -5,7 +5,7 @@
 const SCALE = 173.7178;
 const TAU = 0.5;
 
-export const freshRating = () => ({ r: 1200, rd: 350, vol: 0.06 });
+export const freshRating = () => ({ r: 2200, rd: 350, vol: 0.06 });
 
 export function glicko2(player, results) {
   // results: [{r, rd, score}] — score 1 win, 0 loss, .5 draw
@@ -62,5 +62,8 @@ export function glicko2(player, results) {
 // to 150 simulated 20-hand matches per pairing (2026-08, strategy iteration
 // in play/strategy-hulimit.json), smoothed monotone — the top three rungs
 // are genuinely close, the cliff is Lv5 down to Lv2
-export const LEVEL_RATING = { 2: 1370, 3: 1420, 4: 1455, 5: 1485, 6: 1490, 7: 1500 };
+// centered so the reigning champion holds 2500 — future promoted champions
+// anchor above it, and an essentially-solved strategy is the ~3000 GOAT.
+// Only gaps predict outcomes; the center is a story we choose to tell.
+export const LEVEL_RATING = { 2: 2370, 3: 2420, 4: 2455, 5: 2485, 6: 2490, 7: 2500 };
 export const LEVEL_RD = 60;

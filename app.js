@@ -61,6 +61,9 @@ let fourColor = localStorage.getItem('lp.fourc') !== '0';   // default on: a tra
 let commit8 = '';                 // sha256(seed) prefix — the shuffle's promise
 let rating = freshRating();
 try { rating = Object.assign(freshRating(), JSON.parse(localStorage.getItem('lp.rating') || '{}')); } catch { /* fresh */ }
+// one-time migration to the 2500-centered scale (a pure translation:
+// every gap, and therefore every prediction, is unchanged)
+if (rating.r < 2000 && !rating.era2500) { rating.r += 1000; rating.era2500 = true; localStorage.setItem('lp.rating', JSON.stringify(rating)); }
 
 let table = null;                 // the champion strategy
 let h = null;                     // live engine hand
