@@ -29,6 +29,29 @@ let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
 let bank = +(localStorage.getItem('lp.bank') ?? 0) || 0;
+// lifetime river ledger: every exactly-graded river decision, by action —
+// the number a student of calls is trying to zero
+let rivers = { hands: 0, cats: {} };
+try { rivers = Object.assign(rivers, JSON.parse(localStorage.getItem('lp.rivers') || '{}')) } catch { /* fresh */ }
+function riversAdd(grades) {
+  rivers.hands++;
+  for (const g of grades) {
+    if (g.evLossBb == null) continue;
+    const cat = g.action === 'raise' ? 'bet' : (g.action || 'other');
+    const c = rivers.cats[cat] || (rivers.cats[cat] = { loss: 0, n: 0 });
+    c.loss += g.evLossBb; c.n++;
+  }
+  localStorage.setItem('lp.rivers', JSON.stringify(rivers));
+}
+function riversLine() {
+  if (!rivers.hands) return '';
+  const parts = ['call', 'fold', 'bet', 'check'].filter((k) => rivers.cats[k]).map((k) => {
+    const c = rivers.cats[k];
+    const per100 = c.loss / rivers.hands * 100;
+    return `${k}s <b style="color:${per100 < 0.5 ? 'var(--green)' : per100 < 2 ? 'var(--gold)' : 'var(--red)'}">${per100.toFixed(1)}</b> (${c.n})`;
+  });
+  return parts.length ? `river leak by action, lifetime over ${rivers.hands.toLocaleString()} hands · bb/100 (decisions): ${parts.join(' · ')}` : '';
+}
 function bankAdd(delta) {
   bank += delta;
   localStorage.setItem('lp.bank', String(bank));
@@ -464,7 +487,8 @@ function openHandModal(i) {
 }
 function renderScorecard() {
   const lk = leakOf(docs);
-  $('#score-leak').innerHTML = `<b style="color:${lk < 5 ? 'var(--green)' : 'var(--red)'}">🎯 ${lk.toFixed(1)} bb/100</b>`;
+  $('#score-leak').innerHTML = `<b style="color:${lk < 5 ? 'var(--green)' : 'var(--red)'}">🎯 ${lk.toFixed(1)} bb/100</b>`
+    + (riversLine() ? `<div style="font-size:12.5px;color:var(--ink-soft);margin-top:4px">${riversLine()}</div>` : '');
   $('#score-note').textContent = docs.length
     ? `${docs.length} hands · net ${net >= 0 ? '+' : ''}${net} chips · click a hand for the transcript`
     : 'No hands yet — the cards are waiting.';
@@ -531,7 +555,7 @@ async function playHand() {
             if (ei >= 0) evLossBb = (Math.max(...ev.evs) - ev.evs[ei]) / h.bb;
           }
           g = {
-            street: STREETS[h.street], hinted: a.hinted,
+            street: STREETS[h.street], hinted: a.hinted, action: a.action,
             mix: Object.fromEntries(mix.acts.map((ac, i2) => [names[i2], +mix.probs[i2].toFixed(4)])),
             evLossBb,
           };
@@ -609,6 +633,7 @@ async function playHand() {
   potEl.classList.add('winline');
   potEl.textContent = r.winners.map((x) => `${x.seat === HERO ? 'You win' : 'Bot wins'} ${x.amount.toLocaleString()}`).join(' · ');
   caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
+  riversAdd(handGrades);
   docs.push(buildDoc(h, seed, handGrades));
   renderTop();
   // a visible way onward, always — click or let it auto-deal
@@ -1018,7 +1043,7 @@ async function playOnlineHand() {
             if (ei >= 0) evLossBb = (Math.max(...ev.evs) - ev.evs[ei]) / h.bb;
           }
           g = {
-            street: STREETS[h.street], hinted: a.hinted,
+            street: STREETS[h.street], hinted: a.hinted, action: a.action,
             mix: Object.fromEntries(mix.acts.map((ac, i2) => [names[i2], +mix.probs[i2].toFixed(4)])),
             evLossBb,
           };
@@ -1093,6 +1118,7 @@ async function playOnlineHand() {
   for (const w of winners) logLine(`<span class="lw">${w === meSeat ? 'You win' : oppName + ' wins'} ${share}</span>`);
   caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
   if (folded >= 0) h.seats[1 - meSeat].hole = null;
+  riversAdd(handGrades);
   const doc = buildDoc(h, null, handGrades);
   doc.root = NET.root;
   doc.result = { showdown: folded < 0, pot, winners: winners.map((w) => ({ seat: w, amount: share })) };
