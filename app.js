@@ -919,16 +919,27 @@ function wireSummon() {
   });
 }
 
+let roomSeen = new Set();
 function openRoomChannel() {
+  roomSeen = new Set();
   const es = new EventSource(`${CROUPIER}/room/events?room=${NET.room}`);
   NET.es = es;
   es.onmessage = (e) => {
+    if ($('#caption').textContent.startsWith('⚡ reconnect')) caption('');
     let entry; try { entry = JSON.parse(e.data); } catch { return; }
     const m = entry.msg;
     if (!m || m.from === myPid) return;
+    // reconnects replay history — the server's entry id lands only once
+    // (sender seqs reset on refresh, so they can't be the key)
+    if (entry.id !== undefined) {
+      if (roomSeen.has(entry.id)) return;
+      roomSeen.add(entry.id);
+    }
     handleRoomMsg(m, entry.t || 0);
   };
-  es.onerror = () => { if (NET.on) caption('connection lost — refresh to rejoin'); };
+  // EventSource reconnects on its own; the caption is a heartbeat, not a verdict
+  es.onerror = () => { if (NET.on) caption('⚡ reconnecting…'); };
+  es.onopen = () => { if ($('#caption').textContent.startsWith('⚡ reconnect')) caption(''); };
 }
 const netWaiters = [];
 const netInbox = [];
