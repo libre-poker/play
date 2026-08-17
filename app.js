@@ -28,6 +28,7 @@ let level = Math.min(7, Math.max(2, +(localStorage.getItem('lp.level') || 7)));
 let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
+let turbo = localStorage.getItem('lp.turbo') === '1';
 let bank = +(localStorage.getItem('lp.bank') ?? 0) || 0;
 // lifetime river ledger: every exactly-graded river decision, by action —
 // the number a student of calls is trying to zero
@@ -151,6 +152,7 @@ function chipStackInto(el, amount) {
 // ---------------------------------------------------------------- flight
 // clone a node, fly it to a target, resolve when it lands
 function fly(fromEl, toEl, ms = 420) {
+  if (turbo) ms = 90;
   return new Promise((resolve) => {
     const fx = $('#fx');
     if (!fx || !fromEl || !toEl) return resolve();
@@ -216,6 +218,7 @@ function renderTop() {
   $('#b-rated').classList.toggle('on', effRated);
   $('#b-sound').textContent = soundOn ? '🔊' : '🔇';
   $('#b-leak').classList.toggle('on', leakLive);
+  $('#b-turbo').classList.toggle('on', turbo);
   renderLeak();
 }
 function leakOf(ds) {
@@ -375,6 +378,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === '5') { leakLive = !leakLive; localStorage.setItem('lp.leak', leakLive ? '1' : '0'); renderTop(); return; }
+  if (e.key === '6') { turbo = !turbo; localStorage.setItem('lp.turbo', turbo ? '1' : '0'); caption(turbo ? '⏩ turbo on' : '⏩ turbo off'); setTimeout(() => { if ($('#caption').textContent.startsWith('⏩')) caption(''); }, 900); renderTop(); return; }
   if (!heroResolve) return;
   if (e.key === '1' || e.key === 'f') $('#b-fold')?.click();
   if (e.key === '2' || e.key === 'c' || e.key === ' ') { e.preventDefault(); $('#b-call')?.click(); }
@@ -530,7 +534,7 @@ async function playHand() {
   logLine(`<span class="lm">shuffle committed: ${commit8}…</span>`);
   renderHand(); sCard();
   caption(rated ? `hand ${handNo} of ${RATED_HANDS}` : '');
-  await sleep(400);
+  await sleep(turbo ? 60 : 400);
 
   let guard = 0;
   let lastStreet = 0;
@@ -578,7 +582,7 @@ async function playHand() {
       }
       sChip();
     } else {
-      await sleep(420 + rng() * 500);
+      await sleep(turbo ? 50 : 420 + rng() * 500);
       let a = null;
       if (h.street === 3) {
         const mix = riverMix(h, BOT, table, cache);
@@ -648,7 +652,7 @@ async function playHand() {
     bn.id = 'b-next'; bn.textContent = 'NEXT HAND';
     bn.addEventListener('click', () => resolve());
     bar.appendChild(bn);
-    setTimeout(resolve, r.showdown ? 2600 : 1500);
+    setTimeout(resolve, turbo ? (r.showdown ? 700 : 300) : (r.showdown ? 2600 : 1500));
   });
   $('#actions').innerHTML = '';
   $('#pot').classList.remove('winline');
@@ -730,6 +734,11 @@ $('#b-sound').addEventListener('click', () => {
 $('#b-bank').addEventListener('dblclick', () => {
   bank = 0;
   localStorage.setItem('lp.bank', '0');
+  renderTop();
+});
+$('#b-turbo').addEventListener('click', () => {
+  turbo = !turbo;
+  localStorage.setItem('lp.turbo', turbo ? '1' : '0');
   renderTop();
 });
 $('#b-leak').addEventListener('click', () => {
@@ -891,7 +900,7 @@ function wireSummon() {
     const [bot, lvl] = (document.getElementById('summon-pick')?.value || 'ladder:7').split(':');
     NET.summon = { bot, level: +lvl || null };
     if (bot === 'ladder' && +lvl) { level = +lvl; localStorage.setItem('lp.level', level); }
-    roomSend({ type: 'summon', bot, level: +lvl || undefined });
+    roomSend({ type: 'summon', bot, level: +lvl || undefined, turbo: turbo || undefined });
     e.target.textContent = '🤖 summoned…';
   });
 }
@@ -1138,7 +1147,7 @@ async function playOnlineHand() {
     bn.id = 'b-next'; bn.textContent = 'NEXT HAND';
     bn.addEventListener('click', () => resolve());
     bar.appendChild(bn);
-    setTimeout(resolve, folded >= 0 ? 2000 : 3200);
+    setTimeout(resolve, turbo ? (folded >= 0 ? 300 : 700) : (folded >= 0 ? 2000 : 3200));
   });
   $('#actions').innerHTML = '';
   potEl.classList.remove('winline');
@@ -1199,7 +1208,7 @@ async function startOnlineMatch() {
         caption('the bot seat went quiet — summoning a fresh one…');
         NET.handNo--; handNo--;               // the dead hand never happened
         NET.oppPid = null; NET.oppName = null; NET.oppAgent = null; NET.oppLevel = null;
-        await roomSend({ type: 'summon', bot: NET.summon.bot, level: NET.summon.level });
+        await roomSend({ type: 'summon', bot: NET.summon.bot, level: NET.summon.level, turbo: turbo || undefined });
         const seated = await new Promise((r) => {
           const t0 = Date.now();
           const t = setInterval(() => {
