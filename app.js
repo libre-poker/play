@@ -208,8 +208,9 @@ function renderTop() {
   bk.textContent = `🏦 ${bank >= 0 ? '+' : ''}${bank.toLocaleString()}`;
   bk.classList.toggle('leak-ok', bank > 0);
   bk.classList.toggle('leak-bad', bank < 0);
-  $('#b-rated').textContent = rated ? `🏅 rated ${Math.min(handNo, RATED_HANDS)}/${RATED_HANDS}` : '☕ casual';
-  $('#b-rated').classList.toggle('on', rated);
+  const effRated = NET.on ? !!NET.rated : rated;
+  $('#b-rated').textContent = effRated ? `🏅 rated ${Math.min(handNo, RATED_HANDS)}/${RATED_HANDS}` : '☕ casual';
+  $('#b-rated').classList.toggle('on', effRated);
   $('#b-sound').textContent = soundOn ? '🔊' : '🔇';
   $('#b-leak').classList.toggle('on', leakLive);
   renderLeak();
@@ -922,6 +923,7 @@ function handleRoomMsg(m, t = 0) {
     NET.oppPid = m.from;
     NET.oppName = m.name || null;
     NET.oppAgent = m.agent || null;
+    NET.oppLevel = m.level || +(/Lv (\d)/.exec(m.name || '')?.[1] || 0) || null;
     clearInterval(NET.heartbeat);
     roomSend({ type: 'hello2', name: 'Guest', re: m.from });
     if (NET.host) startOnlineMatch();
@@ -1174,10 +1176,12 @@ function renderOnline(viewSeat, reveal = false) {
 async function startOnlineMatch() {
   NET.on = true;
   matchOpen = false;                      // stop the bot loop after its hand
-  // rated online: only vs the summoned ladder — the anchored opponent whose
-  // rating we know. Humans and characters stay casual (no anchor, no trust).
-  NET.rated = rated && NET.summon?.bot === 'ladder' && !!NET.summon?.level
+  // rated online: only vs the ladder — the anchored opponent whose rating we
+  // know. The seat declares itself (agent + level) so eligibility survives a
+  // page refresh; humans and characters stay casual (no anchor, no trust).
+  NET.rated = rated && !!NET.oppLevel
     && (NET.oppAgent || '').startsWith('librepoker-ladder');
+  if (NET.rated) { level = NET.oppLevel; localStorage.setItem('lp.level', level); }
   netStatus(`connected — playing`);
   $('#m-online').classList.remove('open');
   docs = []; net = 0; handNo = 0;
@@ -1220,7 +1224,7 @@ async function startOnlineMatch() {
         });
         bar.append(bn, bs);
       });
-      NET.rated = rated && NET.summon?.bot === 'ladder' && !!NET.summon?.level
+      NET.rated = rated && !!NET.oppLevel
         && (NET.oppAgent || '').startsWith('librepoker-ladder');
       renderTop();
     }
