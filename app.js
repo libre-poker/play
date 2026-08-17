@@ -29,6 +29,7 @@ let rated = localStorage.getItem('lp.rated') === '1';
 let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
 let turbo = localStorage.getItem('lp.turbo') === '1';
+let matchT0 = 0;                  // first decision of the match — the drill clock
 let bank = +(localStorage.getItem('lp.bank') ?? 0) || 0;
 // lifetime river ledger: every exactly-graded river decision, by action —
 // the number a student of calls is trying to zero
@@ -351,6 +352,7 @@ function heroTurn(L) {
   if (coachMix) mixOnButtons(coachMix, L);
   return new Promise((resolve) => {
     heroResolve = (a) => {
+      if (!matchT0) matchT0 = Date.now();
       bar.innerHTML = ''; heroResolve = null; liveL = null; liveMark = null;
       tb.classList.remove('drain'); tb.style.width = '100%';
       resolve({ ...a, hinted });
@@ -670,6 +672,10 @@ async function matchEnd() {
   // so its expectation matches the win rates the anchors were fitted to
   const cap = 1.7 * BB * RATED_HANDS;
   const score = Math.max(0, Math.min(1, 0.5 + net / (2 * cap)));
+  const elapsed = matchT0 ? Date.now() - matchT0 : 0;
+  const clock = elapsed
+    ? ` — ⏱ ${Math.floor(elapsed / 60000)}:${String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')} from first decision (${(elapsed / 1000 / RATED_HANDS).toFixed(1)}s/hand)`
+    : '';
   const before = Math.round(rating.r);
   rating = glicko2(rating, [{ r: LEVEL_RATING[level], rd: LEVEL_RD, score }]);
   localStorage.setItem('lp.rating', JSON.stringify(rating));
@@ -678,7 +684,7 @@ async function matchEnd() {
   renderScorecard();
   $('#score-note').textContent =
     `Rated match vs level ${level}${NET.on ? ' (online, croupier-dealt)' : ''}: ${net >= 0 ? '+' : ''}${net} chips over ${RATED_HANDS} hands — ` +
-    `margin score ${score.toFixed(2)} — rating ${before} → ${after} (${after - before >= 0 ? '+' : ''}${after - before}). Click a hand for the transcript.`;
+    `margin score ${score.toFixed(2)} — rating ${before} → ${after} (${after - before >= 0 ? '+' : ''}${after - before})${clock}. Click a hand for the transcript.`;
   $('#m-score').classList.add('open');
   matchOpen = false;
   caption(`match over — <a href="#" id="again">deal the next match</a>`);
@@ -689,7 +695,7 @@ async function matchEnd() {
   });
 }
 async function newMatch() {
-  docs = []; net = 0; handNo = 0;
+  docs = []; net = 0; handNo = 0; matchT0 = 0;
   sessionSeed = await sha256hex(`lp|${Date.now()}|${Math.random()}`);
   matchOpen = true;
   renderTop();
@@ -1198,7 +1204,7 @@ async function startOnlineMatch() {
   if (NET.rated) { level = NET.oppLevel; localStorage.setItem('lp.level', level); }
   netStatus(`connected — playing`);
   $('#m-online').classList.remove('open');
-  docs = []; net = 0; handNo = 0;
+  docs = []; net = 0; handNo = 0; matchT0 = 0;
   renderTop();
   caption(NET.rated ? `🏅 rated match vs the Lv ${level} ladder — ${RATED_HANDS} hands, no assistance` : 'opponent connected');
   while (NET.on) {
@@ -1226,7 +1232,7 @@ async function startOnlineMatch() {
       // between matches: counters reset NOW so the rated pill unlocks while
       // the scorecard is up — but the docs stay: the open scorecard's rows
       // must keep their transcripts clickable until the player moves on
-      net = 0; handNo = 0;
+      net = 0; handNo = 0; matchT0 = 0;
       renderTop();
       caption('match settled — 🏅/☕ can be switched now; close the scorecard to play on');
       await new Promise((r) => {
