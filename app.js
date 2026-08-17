@@ -1375,7 +1375,7 @@ $('#b-online').addEventListener('click', () => enterLobby(null));
   renderTop();
   caption('fetching the strategy…');
   try {
-    const r = await fetch('strategy-hulimit.json');
+    const r = await fetch('strategy-hulimit.json?v=17');
     const j = await r.json();
     table = j.table;
     if (j.edges) setEquityEdges(j.edges);
