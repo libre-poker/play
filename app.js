@@ -929,7 +929,7 @@ function handleRoomMsg(m, t = 0) {
     NET.oppLevel = m.level || +(/Lv (\d)/.exec(m.name || '')?.[1] || 0) || null;
     clearInterval(NET.heartbeat);
     roomSend({ type: 'hello2', name: 'Guest', re: m.from });
-    if (NET.host) startOnlineMatch();
+    if (NET.host && !NET.on) startOnlineMatch();
     return;
   }
   if (m.type === 'hello2' && !NET.oppPid && m.re === myPid) { NET.oppPid = m.from; NET.oppName = m.name || null; NET.oppAgent = m.agent || null; clearInterval(NET.heartbeat); return; }
@@ -964,10 +964,11 @@ function openCroupierChannel() {
   };
 }
 const consent = (index, to) => cpost('/consent', { sid: NET.sid, op: { kind: 'reveal', index, to } }, NET.token);
-function revealsReady(idx) {
-  return new Promise((resolve) => {
+function revealsReady(idx, ms = 60000) {
+  return new Promise((resolve, reject) => {
     if (idx.every((k) => NET.reveals.has(k))) return resolve();
     NET.waiters.push({ idx, resolve });
+    setTimeout(() => reject(new Error('table timeout')), ms);
   });
 }
 
@@ -1022,7 +1023,7 @@ async function playOnlineHand() {
     [2, NET.host ? NET.oppPid : myPid], [3, NET.host ? NET.oppPid : myPid]];
   for (const [idx, to] of dealOps) consent(idx, to);
   const myEnv = meSeat === 0 ? [0, 1] : [2, 3];
-  await revealsReady(myEnv);
+  await revealsReady(myEnv, 45000);
   h.seats[meSeat].hole = myEnv.map((i) => NET.reveals.get(i));
   renderOnline(viewSeat);
   sCard();
@@ -1191,7 +1192,25 @@ async function startOnlineMatch() {
   renderTop();
   caption(NET.rated ? `🏅 rated match vs the Lv ${level} ladder — ${RATED_HANDS} hands, no assistance` : 'opponent connected');
   while (NET.on) {
-    try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
+    try { await playOnlineHand(); } catch (e) {
+      const botSeat = (NET.oppAgent || '').startsWith('librepoker-');
+      if (String(e.message).includes('table timeout') && botSeat && NET.summon) {
+        caption('the bot seat went quiet — summoning a fresh one…');
+        NET.handNo--; handNo--;               // the dead hand never happened
+        NET.oppPid = null; NET.oppName = null; NET.oppAgent = null; NET.oppLevel = null;
+        await roomSend({ type: 'summon', bot: NET.summon.bot, level: NET.summon.level });
+        const seated = await new Promise((r) => {
+          const t0 = Date.now();
+          const t = setInterval(() => {
+            if (NET.oppPid) { clearInterval(t); r(true); }
+            else if (Date.now() - t0 > 30000) { clearInterval(t); r(false); }
+          }, 300);
+        });
+        if (seated) { caption('fresh seat: ' + (NET.oppName || 'bot')); continue; }
+        caption('no bot answered — the fleet may be down'); break;
+      }
+      caption('online hand failed: ' + (e.message || e)); break;
+    }
     if (NET.rated && handNo >= RATED_HANDS && NET.on) {
       await matchEnd();
       // between matches: counters reset NOW so the rated pill unlocks while
