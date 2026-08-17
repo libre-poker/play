@@ -101,6 +101,12 @@ function blip(freq, dur = .06, gain = .05, type = 'triangle') {
 }
 const seq = (notes, gap, dur, gain, type = 'sine') =>
   notes.forEach((f, i) => setTimeout(() => blip(f, dur, gain, type), i * gap));
+function posSignal(isButton) {
+  const bar = $('#actions');
+  bar.classList.toggle('pos-btn', isButton);
+  bar.classList.toggle('pos-bb', !isButton);
+  sPos(isButton);
+}
 function sGrade(word) {
   if (word === 'book') seq([659, 988], 85, .11, .038);
   else if (word === 'mix') blip(659, .09, .028, 'sine');
@@ -108,6 +114,7 @@ function sGrade(word) {
   else seq([220, 165], 110, .12, .034);
 }
 const sCard = () => blip(1180, .04, .02);
+const sPos = (btn) => btn ? seq([1320, 1760], 55, .05, .032) : blip(196, .12, .045, 'sine');
 const sChip = () => blip(720, .05, .03);
 
 // ---------------------------------------------------------------- cards
@@ -535,6 +542,7 @@ async function playHand() {
   logLine(`Hand #${handNo} — blinds ${SB}/${BB}`, 'lh2');
   logLine(`<span class="lm">shuffle committed: ${commit8}…</span>`);
   renderHand(); sCard();
+  posSignal(h.button === HERO);
   caption(rated ? `hand ${handNo} of ${RATED_HANDS}` : '');
   await sleep(turbo ? 60 : 400);
 
@@ -1043,6 +1051,7 @@ async function playOnlineHand() {
   h.seats[meSeat].hole = myEnv.map((i) => NET.reveals.get(i));
   renderOnline(viewSeat);
   sCard();
+  posSignal(h.button === meSeat);
 
   let lastStreet = 0;
   let guard = 0;
