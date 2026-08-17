@@ -732,7 +732,7 @@ $('#b-rated').addEventListener('click', () => {
     if (NET.rated && handNo > 0) { caption('rated locks during the match'); return; }
     rated = !rated;
     localStorage.setItem('lp.rated', rated ? '1' : '0');
-    caption(rated ? '🏅 rated applies from the next match' : '☕ casual from the next match');
+    caption(rated ? '🏅 rated — begins at the next hand' : '☕ casual from the next match');
     renderTop();
     return;
   }
@@ -1228,6 +1228,15 @@ async function startOnlineMatch() {
   renderTop();
   caption(NET.rated ? `🏅 rated match vs the Lv ${level} ladder — ${RATED_HANDS} hands, no assistance` : 'opponent connected');
   while (NET.on) {
+    // the pill flipped mid-casual: a casual match has no end, so "next
+    // match" means NOW — a fresh rated 20 begins at this hand
+    if (!NET.rated && rated && !!NET.oppLevel && (NET.oppAgent || '').startsWith('librepoker-ladder')) {
+      NET.rated = true;
+      level = NET.oppLevel; localStorage.setItem('lp.level', level);
+      docs = []; net = 0; handNo = 0; matchT0 = 0;
+      renderTop();
+      caption(`🏅 rated match begins — ${RATED_HANDS} hands, no assistance`);
+    }
     try { await playOnlineHand(); } catch (e) {
       const botSeat = (NET.oppAgent || '').startsWith('librepoker-');
       if (String(e.message).includes('table timeout') && botSeat && NET.summon) {
@@ -1374,6 +1383,15 @@ async function startOnlineGuestLoop() {
   $('#m-online').classList.remove('open');
   docs = []; net = 0; handNo = 0;
   while (NET.on) {
+    // the pill flipped mid-casual: a casual match has no end, so "next
+    // match" means NOW — a fresh rated 20 begins at this hand
+    if (!NET.rated && rated && !!NET.oppLevel && (NET.oppAgent || '').startsWith('librepoker-ladder')) {
+      NET.rated = true;
+      level = NET.oppLevel; localStorage.setItem('lp.level', level);
+      docs = []; net = 0; handNo = 0; matchT0 = 0;
+      renderTop();
+      caption(`🏅 rated match begins — ${RATED_HANDS} hands, no assistance`);
+    }
     try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
   }
   HERO_SEAT = 0;
