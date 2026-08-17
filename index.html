@@ -215,7 +215,7 @@ body.fourc .card.s-c{color:#2c8a52}
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   display:flex;flex-direction:column;align-items:center;gap:9px;width:100%;
 }
-#potrow{display:flex;align-items:flex-end;gap:10px;min-height:30px}
+#potrow{display:flex;align-items:flex-end;gap:10px;min-height:36px}
 #potchips{display:flex;align-items:flex-end}
 #pot{
   display:inline-flex;align-items:center;gap:8px;
@@ -223,10 +223,11 @@ body.fourc .card.s-c{color:#2c8a52}
   background:#00000048;border-radius:20px;padding:4px 16px;
   font-variant-numeric:tabular-nums;border:1px solid #ffffff10;
 }
-#pot.winline{font-size:18px;border-color:rgba(255,217,122,.65);box-shadow:0 0 22px rgba(233,193,92,.3);background:#00000070}
-#pot:empty{display:none}
+#pot.winline{transform:scale(1.2);border-color:rgba(255,217,122,.65);box-shadow:0 0 22px rgba(233,193,92,.3);background:#00000070}
+#pot{transition:transform .15s}
+#pot:empty{visibility:hidden}
 #board{display:flex;gap:clamp(6px,.7vw,9px);min-height:calc(var(--ch) + 2px)}
-#verdict{min-height:22px;display:flex;gap:10px;justify-content:center}
+#verdict{min-height:28px;display:flex;gap:10px;justify-content:center;align-items:center}
 #verdict .vtag{
   font-size:13px;font-weight:800;background:#000000aa;border-radius:12px;
   padding:3px 14px;text-shadow:0 1px 3px #000;
@@ -241,7 +242,8 @@ body.fourc .card.s-c{color:#2c8a52}
 }
 #caption{
   text-align:center;font-size:14px;font-weight:700;color:var(--gold);
-  min-height:20px;padding:2px 12px;text-shadow:0 1px 3px #000;
+  min-height:44px;padding:2px 12px;text-shadow:0 1px 3px #000;
+  display:flex;align-items:center;justify-content:center;
 }
 #caption a{color:#5fc7d6}
 #actions{display:flex;gap:10px;justify-content:center;align-items:center;min-height:58px;
@@ -431,6 +433,6 @@ a{color:#5fc7d6}
   </div>
 </div></div>
 
-<script type="module" src="app.js?v=19"></script>
+<script type="module" src="app.js?v=20"></script>
 </body>
 </html>
