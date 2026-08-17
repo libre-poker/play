@@ -884,6 +884,7 @@ const SUMMON_UI = `<select id="summon-pick" style="background:#00000042;color:va
   <option value="lag:0">Gunner Halloway (wild)</option>
   <option value="station:0">Cook Barnacle (calls)</option>
   <option value="maniac:0">Mad Wren (maniac)</option>
+  <option value="citizen:7">Citizen 455c405b (declared · signs every message)</option>
 </select> <button id="b-summon" class="mbtn" style="background:#3d6ea5">🤖 summon</button>`;
 function wireSummon() {
   document.getElementById('b-summon')?.addEventListener('click', (e) => {
