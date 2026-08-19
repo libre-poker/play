@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libre Poker · history</title>
+<style>
+:root{
+  --room:#241c15; --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
+  --gold:#e9c15c; --green:#3f7d4e; --red:#c33; --danger:#d66; --navy:#3d6ea5;
+  --line:#ffffff18; --card:#2e251c;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roman',serif;min-height:100vh}
+#top{display:flex;align-items:baseline;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+#top h1{font-size:19px;letter-spacing:.14em;color:var(--gold);font-weight:700}
+#top h1 b{color:var(--ink)}
+#top a{color:#5fc7d6;font-size:13px;text-decoration:none}
+#top .meta{color:var(--ink-soft);font-size:13px}
+#wrap{max-width:900px;margin:0 auto;padding:18px 22px 60px}
+#stats{display:flex;gap:22px;flex-wrap:wrap;color:var(--ink-soft);font-size:14px;padding:10px 0 16px}
+#stats b{color:var(--gold)}
+#filters{display:flex;gap:8px;padding-bottom:12px}
+#filters button{background:#00000042;color:var(--ink-soft);border:1px solid var(--line);border-radius:14px;
+  padding:4px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+#filters button.on{color:var(--gold);border-color:rgba(233,193,92,.5)}
+.row{display:flex;gap:14px;align-items:baseline;padding:9px 12px;border-radius:8px;cursor:pointer;
+  font-variant-numeric:tabular-nums;font-size:14.5px}
+.row:hover{background:#ffffff0a}
+.row .when{width:118px;color:var(--ink-mut);font-size:12.5px}
+.row .kind{width:20px}
+.row .hero{width:74px}
+.row .board{flex:1;color:var(--ink-soft)}
+.row .res{width:64px;text-align:right;font-weight:700}
+.row .loss{width:76px;text-align:right;font-size:13px}
+.rc{font-weight:700}.rc.r{color:#e07a7a}
+.W{color:var(--gold)}.L{color:var(--ink-mut)}.S{color:var(--ink-soft)}
+#modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:20px;z-index:9}
+#modal.open{display:flex}
+#mbox{background:var(--card);border:1px solid var(--line);border-radius:12px;max-width:640px;width:100%;
+  max-height:86vh;overflow:auto;padding:20px 24px}
+#mbox h2{color:var(--gold);font-size:16px;padding-bottom:8px}
+#mbox .x{float:right;cursor:pointer;color:var(--ink-mut);font-size:18px}
+#tr{font-size:14px;line-height:1.75}
+#tr .st{color:var(--gold);font-weight:700;font-family:system-ui,sans-serif;font-size:11.5px;letter-spacing:.12em;margin-top:8px}
+#tr .me{color:var(--ink)}.opp{color:var(--ink-soft)}
+#tr .an{color:var(--ink-mut);font-size:12.5px}
+#empty{color:var(--ink-soft);padding:30px 0;font-size:15px}
+</style>
+</head>
+<body>
+<div id="top">
+  <h1><b>Libre</b> Poker · history</h1>
+  <span class="meta" id="who"></span>
+  <span style="flex:1"></span>
+  <a href="./">← back to the table</a>
+</div>
+<div id="wrap">
+  <div id="stats"></div>
+  <div id="filters">
+    <button data-f="all" class="on">all</button>
+    <button data-f="online">online</button>
+    <button data-f="practice">practice</button>
+  </div>
+  <div id="list"></div>
+  <div id="empty" style="display:none">No hands archived yet — the record began 2026-08-20; play and they arrive here forever.</div>
+</div>
+<div id="modal"><div id="mbox"><span class="x" onclick="document.getElementById('modal').classList.remove('open')">✕</span><h2 id="mtitle"></h2><div id="tr"></div></div></div>
+<script>
+const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
+const submitter = localStorage.getItem('lp.submitter');
+const $ = (s) => document.querySelector(s);
+const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
+const red = (a) => a[1] === 'd' || a[1] === 'h';
+const pc = (a) => `<b style="color:${red(a) ? 'var(--danger)' : 'var(--ink)'}">${a[0] === 'T' ? '10' : a[0]}${GLYPH[a[1]]}</b>`;
+const cards = (arr) => (arr || []).map(pc).join(' ');
+let all = [], filter = 'all';
+
+function heroResult(doc) {
+  const hero = doc.hero ?? 0;
+  const winners = doc.result?.winners || [];
+  const mine = winners.find((w) => w.seat === hero);
+  if (!mine) return { cls: 'L', txt: 'loss' };
+  if (winners.length > 1) return { cls: 'S', txt: 'split' };
+  return { cls: 'W', txt: '+' + mine.amount };
+}
+function riverLoss(doc) {
+  let loss = null;
+  for (const an of doc.annotations || []) if (an.evLossBb != null) loss = (loss ?? 0) + an.evLossBb;
+  return loss;
+}
+function render() {
+  const rows = all.filter((r) => filter === 'all' ? true : filter === 'online' ? !!r.doc.root : !r.doc.root);
+  const list = $('#list');
+  list.innerHTML = '';
+  $('#empty').style.display = rows.length ? 'none' : 'block';
+  rows.forEach((r, i) => {
+    const d = r.doc, hero = d.hero ?? 0;
+    const res = heroResult(d);
+    const loss = riverLoss(d);
+    const el = document.createElement('div');
+    el.className = 'row';
+    el.innerHTML = `<span class="when">${new Date(r.t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+      <span class="kind" title="${d.root ? 'online, croupier-dealt' : 'practice'}">${d.root ? '🌐' : '🎓'}</span>
+      <span class="hero">${cards(d.seats[hero]?.hole)}</span>
+      <span class="board">${d.board?.length ? cards(d.board) : '<span style="opacity:.4">—</span>'}</span>
+      <span class="res ${res.cls}">${res.txt}</span>
+      <span class="loss">${loss == null ? '·' : `<span class="rc${loss >= 0.5 ? ' r' : ''}">−${loss.toFixed(2)}bb</span>`}</span>`;
+    el.addEventListener('click', () => openDoc(r));
+    list.appendChild(el);
+  });
+  const online = all.filter((r) => r.doc.root).length;
+  const wins = all.filter((r) => heroResult(r.doc).cls === 'W').length;
+  const rl = all.map((r) => riverLoss(r.doc)).filter((x) => x != null);
+  $('#stats').innerHTML = `<span><b>${all.length}</b> hands archived</span>
+    <span><b>${online}</b> online · <b>${all.length - online}</b> practice</span>
+    <span><b>${wins}</b> won</span>
+    <span>exact river EV lost: <b>${rl.reduce((a, x) => a + x, 0).toFixed(2)}bb</b> over ${rl.length} graded</span>`;
+}
+function openDoc(r) {
+  const d = r.doc, hero = d.hero ?? 0;
+  $('#mtitle').textContent = `${new Date(r.t).toLocaleString()} — ${d.variant || 'hand'}`;
+  const who = (i) => i === hero ? 'You' : (d.seats[i]?.name || 'Opp');
+  const anns = new Map((d.annotations || []).map((a) => [a.action, a]));
+  const bCount = { flop: 3, turn: 4, river: 5 };
+  const out = [];
+  out.push(`<div>${d.seats.map((s, i) => `${who(i)}: ${s.hole ? cards(s.hole) : '—'}`).join(' &nbsp;·&nbsp; ')}</div>`);
+  if (d.root) out.push(`<div class="an">shuffle commitment: ${d.root.slice(0, 16)}…</div>`);
+  out.push('<div class="st">PREFLOP</div>');
+  (d.actions || []).forEach((a, i) => {
+    if (a.street) { out.push(`<div class="st">${a.street.toUpperCase()} &nbsp;${cards((d.board || []).slice(0, bCount[a.street]))}</div>`); return; }
+    const an = anns.get(i);
+    const cost = an?.evLossBb != null ? ` <span class="an">−${an.evLossBb.toFixed(2)}bb</span>` : '';
+    const mix = an?.mix ? ` <span class="an">[${Object.entries(an.mix).map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`).join(' · ')}]</span>` : '';
+    out.push(`<div class="${a.seat === hero ? 'me' : 'opp'}">${who(a.seat)} ${a.act}${a.to ? ' to ' + a.to : a.amount ? ' ' + a.amount : ''}${mix}${cost}</div>`);
+  });
+  const w = (d.result?.winners || []).map((x) => `${who(x.seat)} wins ${x.amount}`).join(' · ');
+  out.push(`<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px">${w}${d.result?.showdown ? '' : ' <span class="an">(no showdown)</span>'}</div>`);
+  $('#tr').innerHTML = out.join('');
+  $('#modal').classList.add('open');
+}
+document.querySelectorAll('#filters button').forEach((b) => b.addEventListener('click', () => {
+  filter = b.dataset.f;
+  document.querySelectorAll('#filters button').forEach((x) => x.classList.toggle('on', x === b));
+  render();
+}));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#modal').classList.remove('open'); });
+(async () => {
+  $('#who').textContent = submitter ? `archive of ${submitter}` : 'no submitter id yet — play a hand first';
+  if (!submitter) { $('#empty').style.display = 'block'; return; }
+  const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(submitter)}&limit=200`).then((x) => x.json());
+  all = r.hands || [];
+  render();
+})();
+</script>
+</body>
+</html>
