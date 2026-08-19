@@ -30,6 +30,24 @@ let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
 let turbo = localStorage.getItem('lp.turbo') === '1';
 let matchT0 = 0;                  // first decision of the match — the drill clock
+// premove: one queued intent, armed by double-press while it's not your
+// turn, scoped to the hand — fires at your next turn or dies at settle
+let premove = null;
+let preKey = { k: null, t: 0 };
+const PRE_LABEL = { fold: 'FOLD', call: 'CHECK / CALL', raise: 'BET / RAISE' };
+function renderPremove() {
+  const bar = $('#actions');
+  if (heroResolve) return;                       // real buttons own the bar
+  if (premove) bar.innerHTML = `<span style="color:var(--gold);font-size:13px;font-weight:800;letter-spacing:.06em;opacity:.85">⏭ ${PRE_LABEL[premove]} armed — same key clears</span>`;
+  else if (bar.firstElementChild?.tagName === 'SPAN') bar.innerHTML = '';
+}
+function realizePremove(intent, L) {
+  if (intent === 'fold') return { seat: HERO, action: L.callAmount > 0 ? 'fold' : 'check' };
+  if (intent === 'call') return { seat: HERO, action: L.callAmount > 0 ? 'call' : 'check' };
+  if (L.actions.includes('bet')) return { seat: HERO, action: 'bet', amount: L.minRaiseTo };
+  if (L.actions.includes('raise')) return { seat: HERO, action: 'raise', amount: L.minRaiseTo };
+  return null;                                   // raise impossible: discard, play it live
+}
 let bank = +(localStorage.getItem('lp.bank') ?? 0) || 0;
 // lifetime river ledger: every exactly-graded river decision, by action —
 // the number a student of calls is trying to zero
@@ -328,6 +346,12 @@ function heroTurn(L) {
   caption('');
   let hinted = false;
   liveL = L;
+  if (premove) {
+    const intent = premove;
+    premove = null;
+    const a = realizePremove(intent, L);
+    if (a) { if (!matchT0) matchT0 = Date.now(); return Promise.resolve({ ...a, hinted: false }); }
+  }
   liveMark = () => { hinted = true; };
   const tb = seats[HERO].tbar;
   tb.classList.remove('drain'); tb.style.width = '100%';
@@ -371,6 +395,19 @@ function heroTurn(L) {
 }
 document.addEventListener('keydown', (e) => {
   audio();
+  const INTENTS = { 1: 'fold', f: 'fold', 2: 'call', c: 'call', 3: 'raise', r: 'raise' };
+  if (!heroResolve && h && h.phase === 'act' && INTENTS[e.key]) {
+    const intent = INTENTS[e.key];
+    const now = Date.now();
+    if (premove === intent && preKey.k === e.key && now - preKey.t < 3000) {
+      premove = null;                            // same key again: disarm
+    } else if (preKey.k === e.key && now - preKey.t < 450) {
+      premove = intent;                          // double-press: arm
+    }
+    preKey = { k: e.key, t: now };
+    renderPremove();
+    return;
+  }
   if (e.key === '4') {
     if (rated) return;
     coachMode = !coachMode;
@@ -537,6 +574,7 @@ async function playHand() {
   $('#tmeta').title = `shuffle committed before the deal: sha256(seed) = ${await sha256hex(seed)} — the seed travels in the hand's document`;
   const cache = {};
   const handGrades = [];
+  premove = null;
   seats.forEach((s2) => { s2.said.textContent = ''; });
   $('#verdict').textContent = '';
   logLine(`Hand #${handNo} — blinds ${SB}/${BB}`, 'lh2');
@@ -1048,6 +1086,7 @@ async function playOnlineHand() {
 
   const cache = {};
   const handGrades = [];
+  premove = null;
   seats.forEach((s2) => { s2.said.textContent = ''; });
   $('#verdict').textContent = '';
   logLine(`Hand #${NET.handNo} vs ${oppName} — root ${commit8}…`, 'lh2');
