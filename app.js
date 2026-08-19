@@ -999,8 +999,8 @@ function wireSummon() {
 }
 
 let roomSeen = new Set();
-function openRoomChannel() {
-  roomSeen = new Set();
+function openRoomChannel(preserveSeen = false) {
+  if (!preserveSeen) roomSeen = new Set();
   const es = new EventSource(`${CROUPIER}/room/events?room=${NET.room}`);
   NET.es = es;
   es.onmessage = (e) => {
@@ -1019,6 +1019,13 @@ function openRoomChannel() {
   // EventSource reconnects on its own; the caption is a heartbeat, not a verdict
   es.onerror = () => { if (NET.on) caption('⚡ reconnecting…'); };
   es.onopen = () => { if ($('#caption').textContent.startsWith('⚡ reconnect')) caption(''); };
+}
+// a single delivery can be lost in flight: reopen the channel WITHOUT the
+// resume cursor — the full replay redelivers everything, the dedup set
+// swallows what we already saw, and only the missed message slips through
+function resyncRoom() {
+  try { NET.es?.close(); } catch { /* already dead */ }
+  openRoomChannel(true);
 }
 const netWaiters = [];
 const netInbox = [];
@@ -1188,7 +1195,16 @@ async function playOnlineHand() {
     } else {
       renderOnline(viewSeat);
       caption(`waiting for ${oppName}…`);
-      const m = await nextMsg((x) => x.type === 'act' && x.sid === NET.sid && x.from === NET.oppPid, 10 * 60000);
+      let m = null;
+      for (let attempt = 0; !m; attempt++) {
+        try {
+          m = await nextMsg((x) => x.type === 'act' && x.sid === NET.sid && x.from === NET.oppPid, 20000);
+        } catch (e) {
+          if (attempt >= 28) throw e;           // ~10 min total, as before
+          caption(`waiting for ${oppName}… (resyncing)`);
+          resyncRoom();
+        }
+      }
       caption('');
       // their engine move must be legal in OUR engine — mutual refereeing
       const L2 = legal(h);
