@@ -943,11 +943,25 @@ const NET = {
   reveals: new Map(),          // envelope index -> value (verified)
   waiters: [],
 };
-const cpost = (path, body, token) => fetch(CROUPIER + path, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
-  body: JSON.stringify(body),
-}).then((r) => r.json());
+// sends retry through network blips the way the event stream reconnects
+// through them — one dropped POST must never kill a match
+async function cpost(path, body, token) {
+  const delays = [500, 1000, 2000, 4000, 8000, 8000];
+  for (let a = 0; ; a++) {
+    try {
+      const r = await fetch(CROUPIER + path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
+        body: JSON.stringify(body),
+      });
+      return await r.json();                     // HTTP errors are answers, not blips
+    } catch (e) {
+      if (a >= delays.length) throw e;
+      caption('⚡ reconnecting…');
+      await sleep(delays[a]);
+    }
+  }
+}
 function roomSend(msg) {
   return cpost('/room/send', { room: NET.room, msg: { from: myPid, seq: NET.seq++, ...msg } });
 }
