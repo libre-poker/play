@@ -426,9 +426,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '5') { leakLive = !leakLive; localStorage.setItem('lp.leak', leakLive ? '1' : '0'); renderTop(); return; }
   if (e.key === '6') { turbo = !turbo; localStorage.setItem('lp.turbo', turbo ? '1' : '0'); caption(turbo ? '⏩ turbo on' : '⏩ turbo off'); setTimeout(() => { if ($('#caption').textContent.startsWith('⏩')) caption(''); }, 900); renderTop(); return; }
   if (!heroResolve) return;
-  if (e.key === '1' || e.key === 'f') $('#b-fold')?.click();
+  if (e.key === '1' || e.key === 'f') ($('#b-fold') || $('#b-next'))?.click();
   if (e.key === '2' || e.key === 'c' || e.key === ' ') { e.preventDefault(); $('#b-call')?.click(); }
   if (e.key === '3' || e.key === 'r') $('#b-raise')?.click();
+  if (e.key === 'Enter') $('#b-next')?.click();
 });
 
 // ---------------------------------------------------------------- the doc
