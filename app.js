@@ -395,6 +395,16 @@ function heroTurn(L) {
 }
 document.addEventListener('keydown', (e) => {
   audio();
+  if (e.key === 'Escape') {
+    // close the topmost open modal — the hand transcript stacks above
+    // the scorecard, so it goes first
+    const order = ['#m-hand', '#m-score', '#m-help', '#m-online'];
+    for (const sel of order) {
+      const m = $(sel);
+      if (m?.classList.contains('open')) { m.classList.remove('open'); return; }
+    }
+    return;
+  }
   const INTENTS = { 1: 'fold', f: 'fold', 2: 'call', c: 'call', 3: 'raise', r: 'raise' };
   if (!heroResolve && h && h.phase === 'act' && INTENTS[e.key]) {
     const intent = INTENTS[e.key];
