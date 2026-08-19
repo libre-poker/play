@@ -1148,6 +1148,16 @@ async function playOnlineHand() {
     const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
     $('#verdict').innerHTML = [0, 1].map((i) =>
       `<span class="vtag ${winners.includes(i) ? 'vw' : 'vl'}">${i === meSeat ? 'You' : oppName}: ${cap(handName(i === 0 ? e0 : e1))}</span>`).join('');
+    // the golden five: the winning hand outlined, everything else dims
+    const winCards = new Set();
+    for (const w2 of winners) for (const c of bestFive([...h.seats[w2].hole, ...h.board])) winCards.add(c);
+    [...$('#board').children].forEach((el, bi) => el.classList.add(winCards.has(h.board[bi]) ? 'win' : 'dead'));
+    for (const i of [0, 1]) {
+      const won = winners.includes(i);
+      [...seats[viewSeat(i)].cards.children].forEach((el, ci) => {
+        el.classList.add(won && winCards.has(h.seats[i].hole[ci]) ? 'win' : 'dead');
+      });
+    }
   }
   const share = Math.floor(pot / winners.length);
   const myDelta = (winners.includes(meSeat) ? share : 0) - h.seats[meSeat].handCommit;
