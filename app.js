@@ -49,6 +49,15 @@ function realizePremove(intent, L) {
   return null;                                   // raise impossible: discard, play it live
 }
 let bank = +(localStorage.getItem('lp.bank') ?? 0) || 0;
+// a stable submitter id: hands archive under one name across sessions
+let submitter = localStorage.getItem('lp.submitter');
+if (!submitter) {
+  submitter = 'p-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map((x) => x.toString(16).padStart(2, '0')).join('');
+  localStorage.setItem('lp.submitter', submitter);
+}
+// every finished hand goes to the archive — fire and forget, the mailbox
+// dedups by (root-or-seed, submitter), so retries and refreshes are free
+const archiveDoc = (d) => { cpost('/archive', { doc: d, submitter }).catch(() => {}); };
 // lifetime river ledger: every exactly-graded river decision, by action —
 // the number a student of calls is trying to zero
 let rivers = { hands: 0, cats: {} };
@@ -706,7 +715,9 @@ async function playHand() {
   potEl.textContent = r.winners.map((x) => `${x.seat === HERO ? 'You win' : 'Bot wins'} ${x.amount.toLocaleString()}`).join(' · ');
   caption(net !== 0 ? `net ${net >= 0 ? '+' : ''}${net}` : '');
   riversAdd(handGrades);
-  docs.push(buildDoc(h, seed, handGrades));
+  const doc0 = buildDoc(h, seed, handGrades);
+  docs.push(doc0);
+  archiveDoc(doc0);
   renderTop();
   // a visible way onward, always — click or let it auto-deal
   await new Promise((resolve) => {
@@ -1244,6 +1255,7 @@ async function playOnlineHand() {
   doc.root = NET.root;
   doc.result = { showdown: folded < 0, pot, winners: winners.map((w) => ({ seat: w, amount: share })) };
   docs.push(doc);
+  archiveDoc(doc);
   renderTop();
   await new Promise((resolve) => {
     const bar = $('#actions');
