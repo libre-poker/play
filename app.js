@@ -1222,7 +1222,10 @@ async function playOnlineHand() {
         try {
           m = await nextMsg((x) => x.type === 'act' && x.sid === NET.sid && x.from === NET.oppPid, 20000);
         } catch (e) {
-          if (attempt >= 28) throw e;           // ~10 min total, as before
+          // a bot that stays silent through several resyncs is a dead seat:
+          // route into the same recovery as a dead deal (void hand, re-summon)
+          if (attempt >= 3 && (NET.oppAgent || '').startsWith('librepoker-')) throw new Error('table timeout');
+          if (attempt >= 28) throw e;           // humans get the long patience
           caption(`waiting for ${oppName}… (resyncing)`);
           resyncRoom();
         }
