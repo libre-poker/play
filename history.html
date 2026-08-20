@@ -191,7 +191,12 @@ document.querySelectorAll('#filters button').forEach((b) => b.addEventListener('
 }));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#modal').classList.remove('open'); });
 (async () => {
-  $('#who').textContent = submitter ? `archive of ${submitter}` : 'no submitter id yet — play a hand first';
+  let ratLine = '';
+  try {
+    const r = JSON.parse(localStorage.getItem('lp.rating') || 'null');
+    if (r) ratLine = ` · ⚡ ${Math.round(r.r)}${r.rd > 110 ? '?' : ''} (RD ${Math.round(r.rd)})`;
+  } catch { /* unrated */ }
+  $('#who').textContent = (submitter ? `archive of ${submitter}` : 'no submitter id yet — play a hand first') + ratLine;
   if (!submitter) { $('#empty').style.display = 'block'; return; }
   const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(submitter)}&limit=200`).then((x) => x.json());
   all = r.hands || [];
