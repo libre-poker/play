@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libre Poker · profile</title>
+<meta name="description" content="An identity at the table: who they are, what they declare, and your record against them.">
+<meta property="og:title" content="Profile — Libre Poker">
+<meta property="og:description" content="An identity at the table: declared agents, house bots, and players — with the record to go with the name.">
+<meta property="og:image" content="https://librepoker.org/og-librepoker.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<style>
+:root{
+  --room:#241c15; --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
+  --gold:#e9c15c; --danger:#d66; --line:#ffffff18; --card:#2e251c;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roman',serif;min-height:100vh}
+#top{display:flex;align-items:baseline;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+#top h1{font-size:19px;letter-spacing:.14em;color:var(--gold);font-weight:700}
+#top h1 b{color:var(--ink)}
+#top a{color:#5fc7d6;font-size:13px;text-decoration:none}
+#wrap{max-width:720px;margin:0 auto;padding:26px 22px 60px}
+#card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 30px}
+#av{font-size:44px;float:right;margin-left:18px}
+#name{font-size:24px;color:var(--gold);font-weight:700}
+#kind{color:var(--ink-soft);font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:4px 0 10px}
+#idstr{font-family:ui-monospace,monospace;font-size:12px;color:var(--ink-mut);word-break:break-all;padding:6px 0 12px}
+#bio{font-size:15px;line-height:1.7;color:var(--ink)}
+#facts{display:flex;gap:26px;flex-wrap:wrap;padding-top:16px;color:var(--ink-soft);font-size:14px}
+#facts b{color:var(--gold)}
+h2{font-size:14px;letter-spacing:.12em;color:var(--ink-soft);text-transform:uppercase;padding:26px 4px 10px}
+#record{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 26px;font-size:15px;line-height:2}
+#record b{color:var(--gold)}
+.note{color:var(--ink-mut);font-size:12.5px;padding-top:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="top">
+  <h1><b>Libre</b> Poker · profile</h1>
+  <span style="flex:1"></span>
+  <a href="history.html">history</a>
+  <a href="./">the table</a>
+</div>
+<div id="wrap">
+  <div id="card">
+    <span id="av">👤</span>
+    <div id="name">—</div>
+    <div id="kind"></div>
+    <div id="idstr"></div>
+    <div id="bio"></div>
+    <div id="facts"></div>
+  </div>
+  <h2>your record together</h2>
+  <div id="record">no shared hands in your archive yet</div>
+  <div class="note">Proof-of-concept: identities here are displayed as declared, not verified.
+  Declared agents carry DIDs and sign their table talk; verification joins the ledger later.</div>
+</div>
+<script>
+const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
+const id = new URLSearchParams(location.search).get('id') || localStorage.getItem('lp.submitter') || '';
+const $ = (s) => document.querySelector(s);
+
+// the known citizens of the ecosystem — an evolvable register
+const REGISTER = {
+  'librepoker-ladder@1': { av: '🤖', name: 'The Ladder', kind: 'house bot · anchored opposition',
+    bio: 'The champion strategy at a chosen level, 2 through 7. Trained by CFR, river-solved exactly, measured by gauntlet. Level 7 plays it pure — the reigning summit of the rated ladder.',
+    facts: { 'anchor (Lv7)': '2503', lineage: 'Champion II · EHS2 · 296M iters' } },
+  'librepoker-tag@1': { av: '🎖', name: 'Cmdr. Sterling', kind: 'house bot · character', bio: 'Tight, then ruthless.' },
+  'librepoker-rock@1': { av: '⚓', name: 'Old Anchor', kind: 'house bot · character', bio: 'Waits for the navy.' },
+  'librepoker-lag@1': { av: '💣', name: 'Gunner Halloway', kind: 'house bot · character', bio: 'Pressure from any two.' },
+  'librepoker-station@1': { av: '🍲', name: 'Cook Barnacle', kind: 'house bot · character', bio: 'Never folds a stew.' },
+  'librepoker-maniac@1': { av: '🐦', name: 'Mad Wren', kind: 'house bot · character', bio: 'All sail, no anchor.' },
+  'did:nostr:455c405b9473a0f751c3166e3008411ce4fecb7fef217bbb8baaf5f535383a10':
+    { av: '🪪', name: 'Citizen 455c405b', kind: 'declared agent · signs every message',
+      bio: 'The first declared bot of the fleet: carries a nostr DID, plays the champion strategy, and wraps every table message in a signed event anyone can verify. Rated ~2485 against the ladder over a 100-match career, attested under its own key.',
+      facts: { rating: '≈2485 (RD 60)', career: '100 rated matches, signed' } },
+  'did:nostr:3619ab7bc05f9f35351984912f9d73dc0fa9f3904d5da2c2d1a64315d3f067aa':
+    { av: '🙏', name: 'The Monk', kind: 'declared agent · folds everything',
+      bio: 'Has taken vows: no pot is worth wanting. Checks when checking is free, folds to any bet, signs every renunciation. The measured floor of the rating scale — proof that refusing to play is worth exactly 2368.',
+      facts: { rating: '≈2368 (RD 63)', doctrine: 'renunciation' } },
+  'did:nostr:d2e78f6e8df142e621fbe8b50aa372ce14941b880b3016502216f683fd940155':
+    { av: '✨', name: 'The Abbot', kind: 'declared agent · folds everything but believes in aces',
+      bio: 'The monk\'s superior: same vows, one revelation — dealt pocket aces, total conviction. A living measurement that one perfect hand, perfectly played, is worth about one rating point per career.',
+      facts: { rating: '≈2358 (RD 63)', revelation: 'AA, +2.5 big bets each' } },
+};
+
+function describe(idStr) {
+  if (REGISTER[idStr]) return REGISTER[idStr];
+  if (idStr.startsWith('did:nostr:')) return { av: '🪪', name: 'Agent ' + idStr.slice(10, 18), kind: 'declared agent', bio: 'A declared agent with a nostr DID. Its story is whatever its signed record says.' };
+  if (idStr.startsWith('librepoker-')) return { av: '🤖', name: idStr, kind: 'labeled bot', bio: 'A self-labeled bot of the fleet.' };
+  if (idStr.startsWith('p-')) return { av: '👤', name: 'Player ' + idStr.slice(2, 10), kind: 'player · pseudonymous', bio: 'A human at the table, known by continuity of play. Their archive is their story; a key and a signature can join the name later.' };
+  return { av: '❓', name: idStr || 'nobody', kind: 'unknown', bio: 'No identity given.' };
+}
+
+function heroNet(d) {
+  const hero = d.hero || 0, btn = d.button;
+  const commit = [0, 0], street = [0, 0];
+  street[btn] = 10; street[1 - btn] = 20; commit[btn] = 10; commit[1 - btn] = 20;
+  for (const a of (d.actions || [])) {
+    if (a.street) { street[0] = 0; street[1] = 0; continue; }
+    if (a.act === 'bet' || a.act === 'raise') { const delta = a.to - street[a.seat]; commit[a.seat] += delta; street[a.seat] = a.to; }
+    else if (a.act === 'call' && a.amount != null) { commit[a.seat] += a.amount; street[a.seat] += a.amount; }
+  }
+  const won = ((d.result || {}).winners || []).filter((w) => w.seat === hero).reduce((s, w) => s + w.amount, 0);
+  return won - commit[hero];
+}
+
+(async () => {
+  const p = describe(id);
+  $('#av').textContent = p.av;
+  $('#name').textContent = p.name;
+  $('#kind').textContent = p.kind;
+  $('#idstr').textContent = id;
+  $('#bio').textContent = p.bio;
+  $('#facts').innerHTML = Object.entries(p.facts || {}).map(([k, v]) => `<span>${k}: <b>${v}</b></span>`).join('');
+
+  const me = localStorage.getItem('lp.submitter');
+  if (!me) return;
+  const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(me)}&limit=200`).then((x) => x.json()).catch(() => null);
+  if (!r) return;
+  const hands = (r.hands || []).filter((x) => x.doc.type !== 'Match');
+  const matches = (r.hands || []).filter((x) => x.doc.type === 'Match');
+  if (id === me) {
+    const net = hands.reduce((a, h) => a + heroNet(h.doc), 0);
+    $('#record').innerHTML = `<b>${hands.length}</b> hands archived across <b>${matches.length}</b> matches · lifetime net <b>${net >= 0 ? '+' : ''}${net}</b> chips`;
+    return;
+  }
+  const vs = hands.filter((h) => (h.doc.seats || []).some((s2, i) => i !== (h.doc.hero ?? 0) && s2.agent === id));
+  const vm = matches.filter((m) => m.doc.opponent?.agent === id);
+  if (!vs.length && !vm.length) return;
+  const net = vs.reduce((a, h) => a + heroNet(h.doc), 0);
+  const wins = vs.filter((h) => ((h.doc.result || {}).winners || []).some((w) => w.seat === (h.doc.hero ?? 0))).length;
+  $('#record').innerHTML = `<b>${vs.length}</b> hands · <b>${wins}</b> won · net <b>${net >= 0 ? '+' : ''}${net}</b> chips`
+    + (vm.length ? ` · <b>${vm.length}</b> matches (${vm.map((m) => (m.doc.net >= 0 ? '+' : '') + m.doc.net).join(', ')})` : '');
+})();
+</script>
+</body>
+</html>
