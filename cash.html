@@ -348,6 +348,11 @@ a{color:#5fc7d6}
   <button class="chip" id="b-bank" title="Withdraw sats from your ledger balance to your own testnet4 wallet">🏦 bank</button>
 </div>
 <div id="bankpanel">
+  <div class="bp-title">DEPOSIT — any wallet → your ledger</div>
+  <div id="bp-depaddr" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all;cursor:pointer;color:var(--ink)" title="click to copy">log in to derive your deposit address…</div>
+  <button id="bp-depcheck" class="chip" style="justify-content:center">CHECK DEPOSIT</button>
+  <div id="bp-depstatus" style="font-size:11.5px;color:var(--ink-soft);line-height:1.55">Every nostr account has its own address — cashier key + sha256 of your DID, derived right here in the page. Send testnet4 sats to it; after 1 confirmation, check.</div>
+  <div style="height:1px;background:#ffffff22;margin:3px 0"></div>
   <div class="bp-title">WITHDRAW — ledger sats → your wallet</div>
   <input id="bp-addr" placeholder="your testnet4 address (tb1…)" spellcheck="false" autocomplete="off">
   <input id="bp-amt" type="number" min="1000" step="500" value="5000" title="amount in sats">
@@ -391,9 +396,13 @@ a{color:#5fc7d6}
 import { newHand, legal, act, evaluate, bestFive, handName, rankOf, suitOf, RANKS, rngFromSeed } from './engine/poker.js';
 import { ladderDecide, setEquityEdges } from './engine/ladder.js';
 import { riverMix } from './engine/river-solver.js';
+import { depositAddressFor } from './engine/wl-address.js';
 
 const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
 const CASHIER_DID = 'did:nostr:ce9218b4144f8b54a52f3a5b2fa412cf26b0da95f067f9af9367167808a317dd';
+const CITIZEN_FULL_DID = 'did:nostr:455c405b9473a0f751c3166e3008411ce4fecb7fef217bbb8baaf5f535383a10';
+const MEMPOOL = 'https://mempool.space/testnet4/api';
+const myDid = () => window.xlogin?.id ? 'did:nostr:' + window.xlogin.id : null;
 const GAME = 'LEDGER1';
 const $ = (s) => document.querySelector(s);
 const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
@@ -466,7 +475,9 @@ async function refreshBalances() {
     const led = (r.hands || []).map((x) => x.doc).filter((d) => d.type === 'Ledger' && d.balances).sort((a, b) => (b.seq || 0) - (a.seq || 0))[0];
     if (led) {
       const [me, cit] = Object.entries(led.balances);
-      $('#balances').innerHTML = `you <b style="color:var(--gold)">${Object.values(led.balances)[0].toLocaleString()}</b> · citizen <b style="color:var(--gold)">${Object.values(led.balances)[1].toLocaleString()}</b> sats`;
+      const mine = led.balances[myDid()] ?? Object.values(led.balances)[0];
+      const cit = led.balances[CITIZEN_FULL_DID] ?? Object.values(led.balances)[1];
+      $('#balances').innerHTML = `you <b style="color:var(--gold)">${mine.toLocaleString()}</b> · citizen <b style="color:var(--gold)">${cit.toLocaleString()}</b> sats`;
       return;
     }
   } catch { /* offline */ }
@@ -653,6 +664,51 @@ async function playHand() {
   $('#actions').innerHTML = '';
   $('#pot').classList.remove('winline');
 }
+// ---- the bank: deposit — your address derives client-side from your DID
+let depAddr = null;
+const depStatus = (t) => { $('#bp-depstatus').innerHTML = t; };
+function drawDeposit() {
+  if (!myDid()) return;
+  try {
+    depAddr = depositAddressFor(CASHIER_DID.slice(10), myDid()).address;
+    $('#bp-depaddr').textContent = depAddr;
+  } catch { $('#bp-depaddr').textContent = 'address derivation failed'; }
+}
+window.addEventListener('xlogin', drawDeposit);
+drawDeposit();
+$('#bp-depaddr').addEventListener('click', async () => {
+  if (!depAddr) return;
+  try { await navigator.clipboard.writeText(depAddr); depStatus('address copied.'); } catch { /* http or denied */ }
+});
+$('#bp-depcheck').addEventListener('click', async () => {
+  if (!depAddr) return depStatus('⚠ log in first — the xlogin button, bottom right.');
+  depStatus('looking at the chain…');
+  const utxos = await fetch(`${MEMPOOL}/address/${depAddr}/utxo`).then((r) => r.json()).catch(() => null);
+  if (!Array.isArray(utxos)) return depStatus('⚠ chain explorer unreachable — try again shortly');
+  if (!utxos.length) return depStatus('nothing at your address yet — send testnet4 sats to it first.');
+  if (!utxos.some((u) => u.status?.confirmed)) return depStatus('⏳ seen in the mempool — waiting for a block. Check again in a minute.');
+  try {
+    const claim = { claim: 'deposit-check', t: Math.floor(Date.now() / 1000) };
+    const attest = await window.nostr.signEvent({ kind: 20779, created_at: claim.t, tags: [['t', 'lp-cash']], content: JSON.stringify(claim) });
+    await fetch(`${CROUPIER}/room/send`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ room: 'CASH01', msg: { from: 'cash-' + attest.pubkey.slice(0, 8), seq: Date.now() % 100000, type: 'deposit-check', attest } }) });
+    depStatus('⚡ signed — asking the cashier to book it…');
+    for (let i = 0; i < 15; i++) {
+      await sleep(1000);
+      const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(CASHIER_DID)}&limit=6`).then((x) => x.json()).catch(() => null);
+      const doc = (r?.hands || []).map((x) => x.doc).find((d) => d.entry === 'credit' && d.wreq === attest.id);
+      if (doc) {
+        sLedger();
+        depStatus(`✅ <b>${doc.sats.toLocaleString()} sats</b> credited to your ledger balance.`);
+        await refreshBalances();
+        return;
+      }
+    }
+    await refreshBalances();
+    depStatus('no new coins to credit — these were likely booked already. Balances refreshed.');
+  } catch { depStatus('signing declined — nothing checked'); }
+});
+
 // ---- the bank: withdraw book sats to your own testnet4 wallet
 const bankPanel = $('#bankpanel');
 $('#b-bank').addEventListener('click', () => { bankPanel.classList.toggle('open'); audio(); });
