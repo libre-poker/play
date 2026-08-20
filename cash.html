@@ -667,12 +667,17 @@ async function playHand() {
 // ---- the bank: deposit — your address derives client-side from your DID
 let depAddr = null;
 const depStatus = (t) => { $('#bp-depstatus').innerHTML = t; };
-function drawDeposit() {
+async function drawDeposit() {
   if (!myDid()) return;
   try {
     depAddr = depositAddressFor(CASHIER_DID.slice(10), myDid()).address;
     $('#bp-depaddr').textContent = depAddr;
-  } catch { $('#bp-depaddr').textContent = 'address derivation failed'; }
+  } catch { $('#bp-depaddr').textContent = 'address derivation failed'; return; }
+  const utxos = await fetch(`${MEMPOOL}/address/${depAddr}/utxo`).then((r) => r.json()).catch(() => null);
+  if (Array.isArray(utxos)) {
+    const tot = utxos.reduce((a, u) => a + u.value, 0);
+    depStatus(`this address holds <b>${tot.toLocaleString()}</b> sats on-chain. Send more from any wallet (0-conf counts), then CHECK DEPOSIT books the new coins.`);
+  }
 }
 window.addEventListener('xlogin', drawDeposit);
 drawDeposit();
@@ -710,7 +715,7 @@ $('#bp-depcheck').addEventListener('click', async () => {
 
 // ---- the bank: withdraw book sats to your own testnet4 wallet
 const bankPanel = $('#bankpanel');
-$('#b-bank').addEventListener('click', () => { bankPanel.classList.toggle('open'); audio(); });
+$('#b-bank').addEventListener('click', () => { bankPanel.classList.toggle('open'); audio(); if (bankPanel.classList.contains('open')) drawDeposit(); });
 const bpStatus = (t) => { $('#bp-status').innerHTML = t; };
 $('#bp-go').addEventListener('click', async () => {
   if (!window.xlogin?.id) return bpStatus('⚠ log in first — the xlogin button, bottom right. Withdrawals are signed with your key.');
