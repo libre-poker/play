@@ -331,6 +331,7 @@ a{color:#5fc7d6}
   <span id="nlbadge" title="v0: the opponent is a young strategy still in training; no exact grading yet">NL v0 · training in progress</span>
   <span class="spacer"></span>
   <button class="chip" id="b-net" title="Session net"></button>
+  <button class="chip" id="b-sound" title="Sound"></button>
   <a class="chip" href="./" style="text-decoration:none" title="Back to the limit table">← limit</a>
 </div>
 
@@ -396,6 +397,31 @@ function chipStackInto(el, amount) {
   }
 }
 const caption = (t) => { $('#caption').innerHTML = t; };
+// the voice pack, forked from the limit table like the skin
+let ac = null, master = null, soundOn = localStorage.getItem('lp.sound') !== '0';
+function audio() {
+  if (ac) return;
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = .5; master.connect(ac.destination); } catch { /* silent */ }
+}
+const ready = () => soundOn && ac && ac.state === 'running' && !document.hidden;
+function blip(freq, dur = .06, gain = .05, type = 'triangle') {
+  if (!ready()) return;
+  try {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(.0001, ac.currentTime);
+    g.gain.linearRampToValueAtTime(gain * 2.2, ac.currentTime + .003);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime + dur);
+  } catch { /* shrug */ }
+}
+const sq = (notes, gap, dur, gain) => notes.forEach((f, i) => setTimeout(() => blip(f, dur, gain, 'sine'), i * gap));
+const sCard = () => blip(1180, .04, .02);
+const sChip = () => blip(720, .05, .03);
+const sPos = (btn) => btn ? sq([1320, 1760], 55, .05, .032) : blip(196, .12, .045, 'sine');
+const sAllin = () => sq([392, 523, 659], 70, .12, .04);
+document.addEventListener('pointerdown', audio, { once: false });
+document.addEventListener('keydown', audio);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((x) => x.toString(16).padStart(2, '0')).join('');
 
@@ -509,16 +535,19 @@ async function playHand() {
   $('#verdict').textContent = '';
   document.querySelectorAll('#board .card, .fcards .card').forEach((el) => el.classList.remove('win', 'dead'));
   render();
+  sCard();
+  sPos(heroAbs === 0);
   caption('');
   let lastStreet = 0;
   while (!st.done) {
-    if (st.street !== lastStreet) { lastStreet = st.street; shownBoard = BOARD_N[st.street]; render(); await sleep(250); }
+    if (st.street !== lastStreet) { lastStreet = st.street; shownBoard = BOARD_N[st.street]; render(); sCard(); await sleep(250); }
     const said = seats[dom(st.actor)].said;
     let a;
     if (st.actor === heroAbs) a = await heroTurn();
     else { await sleep(300 + Math.random() * 400); a = botAct(); }
     const t = HUNL.targets(st);
     said.textContent = label(a, t).toLowerCase();
+    if (a === 'a') sAllin(); else if (a !== 'f') sChip();
     st = HUNL.apply(st, a);
     render();
   }
@@ -560,6 +589,10 @@ async function playHand() {
   $('#actions').innerHTML = '';
   $('#pot').classList.remove('winline');
 }
+const sndBtn = $('#b-sound');
+const drawSnd = () => { sndBtn.textContent = soundOn ? '🔊' : '🔇'; };
+sndBtn.addEventListener('click', () => { soundOn = !soundOn; localStorage.setItem('lp.sound', soundOn ? '1' : '0'); drawSnd(); });
+drawSnd();
 (async () => { for (;;) await playHand(); })();
 </script>
 </body>
