@@ -30,6 +30,8 @@ let soundOn = localStorage.getItem('lp.sound') !== '0';
 let leakLive = localStorage.getItem('lp.leak') === '1';
 let turbo = localStorage.getItem('lp.turbo') === '1';
 let matchT0 = 0;                  // first decision of the match — the drill clock
+let matchId = null;
+const mintMatch = () => { matchId = 'm-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((x) => x.toString(16).padStart(2, '0')).join(''); };
 // premove: one queued intent, armed by double-press while it's not your
 // turn, scoped to the hand — fires at your next turn or dies at settle
 let premove = null;
@@ -502,6 +504,13 @@ function buildDoc(hh, seed, gradeList) {
     },
   };
   if (annotations.length) doc.annotations = annotations;
+  doc.matchId = matchId;
+  doc.matchType = (NET.on ? NET.rated : rated) ? 'rated' : 'casual';
+  doc.handIndex = handNo;
+  if (NET.on && NET.oppAgent) {
+    const opp = doc.seats[1 - (doc.hero ?? 0)];
+    if (opp) { opp.agent = NET.oppAgent; if (NET.oppLevel) opp.level = NET.oppLevel; }
+  }
   return doc;
 }
 
@@ -753,6 +762,19 @@ async function matchEnd() {
   rating = glicko2(rating, [{ r: LEVEL_RATING[level], rd: LEVEL_RD, score }]);
   localStorage.setItem('lp.rating', JSON.stringify(rating));
   const after = Math.round(rating.r);
+  archiveDoc({
+    '@context': 'https://librepoker.org/context.jsonld',
+    type: 'Match', v: 0, root: matchId, matchId,
+    mode: NET.on ? 'online' : 'practice', matchType: 'rated',
+    opponent: NET.on
+      ? { name: NET.oppName, agent: NET.oppAgent, level: NET.oppLevel }
+      : { name: `Level ${level}`, agent: `librepoker-ladder-${level}` },
+    anchor: LEVEL_RATING[level],
+    hands: docs.map((d) => d.root || d.seed),
+    net, score: +score.toFixed(4),
+    ratingBefore: before, ratingAfter: after,
+    elapsedMs: elapsed || null,
+  });
   renderTop();
   renderScorecard();
   $('#score-note').textContent =
@@ -768,7 +790,7 @@ async function matchEnd() {
   });
 }
 async function newMatch() {
-  docs = []; net = 0; handNo = 0; matchT0 = 0;
+  docs = []; net = 0; handNo = 0; matchT0 = 0; mintMatch();
   sessionSeed = await sha256hex(`lp|${Date.now()}|${Math.random()}`);
   matchOpen = true;
   renderTop();
@@ -1331,7 +1353,7 @@ async function startOnlineMatch() {
   if (NET.rated) { level = NET.oppLevel; localStorage.setItem('lp.level', level); }
   netStatus(`connected — playing`);
   $('#m-online').classList.remove('open');
-  docs = []; net = 0; handNo = 0; matchT0 = 0;
+  docs = []; net = 0; handNo = 0; matchT0 = 0; mintMatch();
   renderTop();
   caption(NET.rated ? `🏅 rated match vs the Lv ${level} ladder — ${RATED_HANDS} hands, no assistance` : 'opponent connected');
   while (NET.on) {
@@ -1340,7 +1362,7 @@ async function startOnlineMatch() {
     if (!NET.rated && rated && !!NET.oppLevel && (NET.oppAgent || '').startsWith('librepoker-ladder')) {
       NET.rated = true;
       level = NET.oppLevel; localStorage.setItem('lp.level', level);
-      docs = []; net = 0; handNo = 0; matchT0 = 0;
+      docs = []; net = 0; handNo = 0; matchT0 = 0; mintMatch();
       renderTop();
       caption(`🏅 rated match begins — ${RATED_HANDS} hands, no assistance`);
     }
@@ -1368,7 +1390,7 @@ async function startOnlineMatch() {
       // between matches: counters reset NOW so the rated pill unlocks while
       // the scorecard is up — but the docs stay: the open scorecard's rows
       // must keep their transcripts clickable until the player moves on
-      net = 0; handNo = 0; matchT0 = 0;
+      net = 0; handNo = 0; matchT0 = 0; mintMatch();
       renderTop();
       caption('match settled — 🏅/☕ can be switched now; close the scorecard to play on');
       await new Promise((r) => {
@@ -1495,7 +1517,7 @@ async function startOnlineGuestLoop() {
     if (!NET.rated && rated && !!NET.oppLevel && (NET.oppAgent || '').startsWith('librepoker-ladder')) {
       NET.rated = true;
       level = NET.oppLevel; localStorage.setItem('lp.level', level);
-      docs = []; net = 0; handNo = 0; matchT0 = 0;
+      docs = []; net = 0; handNo = 0; matchT0 = 0; mintMatch();
       renderTop();
       caption(`🏅 rated match begins — ${RATED_HANDS} hands, no assistance`);
     }
