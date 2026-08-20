@@ -352,7 +352,7 @@ a{color:#5fc7d6}
   <div class="bp-title">DEPOSIT — any wallet → your ledger</div>
   <div id="bp-depaddr" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all;cursor:pointer;color:var(--ink)" title="click to copy">log in to derive your deposit address…</div>
   <button id="bp-depcheck" class="chip" style="justify-content:center">CHECK DEPOSIT</button>
-  <div id="bp-depstatus" style="font-size:11.5px;color:var(--ink-soft);line-height:1.55">Every nostr account has its own address — cashier key + sha256 of your DID, derived right here in the page. Send testnet4 sats to it; after 1 confirmation, check.</div>
+  <div id="bp-depstatus" style="font-size:11.5px;color:var(--ink-soft);line-height:1.55">Every nostr account has its own address — cashier key + sha256 of your DID, derived right here in the page. Send testnet4 sats to it, then check — 0-conf counts here.</div>
   <div style="height:1px;background:#ffffff22;margin:3px 0"></div>
   <div class="bp-title">WITHDRAW — ledger sats → your wallet</div>
   <input id="bp-addr" placeholder="your testnet4 address (tb1…)" spellcheck="false" autocomplete="off">
@@ -686,7 +686,6 @@ $('#bp-depcheck').addEventListener('click', async () => {
   const utxos = await fetch(`${MEMPOOL}/address/${depAddr}/utxo`).then((r) => r.json()).catch(() => null);
   if (!Array.isArray(utxos)) return depStatus('⚠ chain explorer unreachable — try again shortly');
   if (!utxos.length) return depStatus('nothing at your address yet — send testnet4 sats to it first.');
-  if (!utxos.some((u) => u.status?.confirmed)) return depStatus('⏳ seen in the mempool — waiting for a block. Check again in a minute.');
   try {
     const claim = { claim: 'deposit-check', t: Math.floor(Date.now() / 1000) };
     const attest = await window.nostr.signEvent({ kind: 20779, created_at: claim.t, tags: [['t', 'lp-cash']], content: JSON.stringify(claim) });
