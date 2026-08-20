@@ -72,15 +72,17 @@ body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roma
     <button data-f="practice">practice</button>
   </div>
   <div id="list"></div>
-  <div id="empty" style="display:none">No hands archived yet — the record began 2026-08-20; play and they arrive here forever.</div>
+  <div id="empty" style="display:none">Nothing archived yet — the record began 2026-08-20; play and it arrives here forever.</div>
 </div>
 <div id="modal"><div id="mbox"><span class="x" onclick="document.getElementById('modal').classList.remove('open')">✕</span><h2 id="mtitle"></h2><div id="tr"></div></div></div>
 <script>
 const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
-const qsSub = new URLSearchParams(location.search).get('submitter');
+const qs = new URLSearchParams(location.search);
+const qsSub = qs.get('submitter');
 const mine = localStorage.getItem('lp.submitter');
-const submitter = qsSub || mine;
-const viewingOwn = !qsSub || qsSub === mine;
+const world = qs.get('world') === '1' || (!qsSub && !mine);
+const submitter = world ? null : (qsSub || mine);
+const viewingOwn = !world && (!qsSub || qsSub === mine);
 const $ = (s) => document.querySelector(s);
 try { const rm = localStorage.getItem('lp.room'); if (rm) document.getElementById('backlink').href = './?join=' + rm; } catch { /* fine */ }
 const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
@@ -127,25 +129,29 @@ function render() {
   const matches = rows.filter((r) => r.doc.type === 'Match');
   const hands = rows.filter((r) => r.doc.type !== 'Match');
   const byMatch = {};
-  for (const h of hands) if (h.doc.matchId) (byMatch[h.doc.matchId] ||= []).push(h);
+  for (const h of hands) if (h.doc.matchId) (byMatch[h.submitter + '|' + h.doc.matchId] ||= []).push(h);
   const claimed = new Set();
   $('#empty').style.display = rows.length ? 'none' : 'block';
   for (const m of matches) {
     const d = m.doc;
-    const kids = (byMatch[d.matchId] || []).sort((a, b) => (a.doc.handIndex || 0) - (b.doc.handIndex || 0));
+    const kids = (byMatch[m.submitter + '|' + d.matchId] || []).sort((a, b) => (a.doc.handIndex || 0) - (b.doc.handIndex || 0));
     kids.forEach((k) => claimed.add(k.key));
     const el = document.createElement('div');
     el.className = 'row';
     el.style.borderTop = '1px solid var(--line)';
+    const whoLink = viewingOwn
+      ? `<a href="profile.html?id=${encodeURIComponent(submitter || '')}" style="color:#5fc7d6;text-decoration:none" onclick="event.stopPropagation()">You</a>`
+      : `<a href="profile.html?id=${encodeURIComponent(m.submitter)}" style="color:#5fc7d6;text-decoration:none" onclick="event.stopPropagation()">Player ${m.submitter.slice(2, 10)}</a>`;
     const dur = d.elapsedMs ? ` · ⏱ ${Math.floor(d.elapsedMs / 60000)}:${String(Math.floor(d.elapsedMs / 1000) % 60).padStart(2, '0')}` : '';
     const rat = d.ratingBefore != null ? ` · ⚡ ${d.ratingBefore} → ${d.ratingAfter}` : '';
     el.innerHTML = `<span class="when">${new Date(m.t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="kind">🏅</span>
-      <span class="board"><b class="${d.net > 0 ? 'W' : 'L'}">${d.matchType} match</b> · <a href="profile.html?id=${encodeURIComponent(submitter || '')}" style="color:#5fc7d6;text-decoration:none" onclick="event.stopPropagation()">You</a> vs ${d.opponent?.agent ? `<a href="profile.html?id=${encodeURIComponent(d.opponent.agent)}" style="color:#5fc7d6;text-decoration:none" onclick="event.stopPropagation()">${d.opponent?.name || d.opponent.agent}</a>` : (d.opponent?.name || '?')} · ${kids.length || (d.hands || []).length} hands · net ${d.net >= 0 ? '+' : ''}${d.net} · margin ${(d.score ?? 0).toFixed(2)}${rat}${dur}</span>
-      <span class="res">${openGroups.has(d.matchId) ? '▾' : '▸'}</span>`;
-    el.addEventListener('click', () => { openGroups.has(d.matchId) ? openGroups.delete(d.matchId) : openGroups.add(d.matchId); render(); });
+      <span class="board"><b class="${d.net > 0 ? 'W' : 'L'}">${d.matchType} match</b> · ${whoLink} vs ${d.opponent?.agent ? `<a href="profile.html?id=${encodeURIComponent(d.opponent.agent)}" style="color:#5fc7d6;text-decoration:none" onclick="event.stopPropagation()">${d.opponent?.name || d.opponent.agent}</a>` : (d.opponent?.name || '?')} · ${kids.length || (d.hands || []).length} hands · net ${d.net >= 0 ? '+' : ''}${d.net} · margin ${(d.score ?? 0).toFixed(2)}${rat}${dur}</span>
+      <span class="res">${openGroups.has(m.submitter + '|' + d.matchId) ? '▾' : '▸'}</span>`;
+    const gk = m.submitter + '|' + d.matchId;
+    el.addEventListener('click', () => { openGroups.has(gk) ? openGroups.delete(gk) : openGroups.add(gk); render(); });
     list.appendChild(el);
-    if (openGroups.has(d.matchId)) {
+    if (openGroups.has(m.submitter + '|' + d.matchId)) {
       for (const k of kids) { const kr = handRow(k); kr.style.paddingLeft = '34px'; list.appendChild(kr); }
     }
   }
@@ -201,9 +207,15 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#modal'
     const r = viewingOwn ? JSON.parse(localStorage.getItem('lp.rating') || 'null') : null;
     if (r) ratLine = ` · ⚡ ${Math.round(r.r)}${r.rd > 110 ? '?' : ''} (RD ${Math.round(r.rd)})`;
   } catch { /* unrated */ }
-  $('#who').innerHTML = (submitter ? `archive of <a href="profile.html?id=${encodeURIComponent(submitter)}" style="color:#5fc7d6;text-decoration:none">${submitter}</a>` : 'no submitter id yet — play a hand first') + ratLine;
-  if (!submitter) { $('#empty').style.display = 'block'; return; }
-  const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(submitter)}&limit=200`).then((x) => x.json());
+  const toggle = world
+    ? (mine ? ` · <a href="history.html" style="color:#5fc7d6;text-decoration:none">your archive</a>` : '')
+    : ` · <a href="history.html?world=1" style="color:#5fc7d6;text-decoration:none">world record</a>`;
+  $('#who').innerHTML = (world
+    ? 'the public record — every archived hand, all players'
+    : `archive of <a href="profile.html?id=${encodeURIComponent(submitter)}" style="color:#5fc7d6;text-decoration:none">${submitter}</a>`) + ratLine + toggle;
+  if (!world && !submitter) { $('#empty').style.display = 'block'; return; }
+  const url = world ? `${CROUPIER}/archive?limit=200` : `${CROUPIER}/archive?submitter=${encodeURIComponent(submitter)}&limit=200`;
+  const r = await fetch(url).then((x) => x.json());
   all = r.hands || [];
   render();
 })();
