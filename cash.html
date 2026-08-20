@@ -398,6 +398,30 @@ function chipStackInto(el, amount) {
   }
 }
 const caption = (t) => { $('#caption').innerHTML = t; };
+let ac = null, master = null, soundOn = localStorage.getItem('lp.sound') !== '0';
+function audio() {
+  if (ac) return;
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = .5; master.connect(ac.destination); } catch { /* silent */ }
+}
+const ready = () => soundOn && ac && ac.state === 'running' && !document.hidden;
+function blip(freq, dur = .06, gain = .05, type = 'triangle') {
+  if (!ready()) return;
+  try {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(.0001, ac.currentTime);
+    g.gain.linearRampToValueAtTime(gain * 2.2, ac.currentTime + .003);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime + dur);
+  } catch { /* shrug */ }
+}
+const sq = (n, gap, dur, gain) => n.forEach((f, i) => setTimeout(() => blip(f, dur, gain, 'sine'), i * gap));
+const sCard = () => blip(1180, .04, .02);
+const sChip = () => blip(720, .05, .03);
+const sPos = (btn) => btn ? sq([1320, 1760], 55, .05, .032) : blip(196, .12, .045, 'sine');
+const sLedger = () => sq([523, 659, 784], 80, .12, .04);
+document.addEventListener('pointerdown', audio);
+document.addEventListener('keydown', audio);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((x) => x.toString(16).padStart(2, '0')).join('');
 
@@ -408,6 +432,12 @@ if (T.edges) setEquityEdges(T.edges);
 caption('');
 
 // ---- balances from the cashier's signed ledger
+async function fetchLedgerFor(root) {
+  try {
+    const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(CASHIER_DID)}&limit=5`).then((x) => x.json());
+    return (r.hands || []).map((x) => x.doc).find((d) => d.type === 'Ledger' && d.handRoot === root) || null;
+  } catch { return null; }
+}
 async function refreshBalances() {
   try {
     const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(CASHIER_DID)}&limit=5`).then((x) => x.json());
@@ -504,9 +534,20 @@ async function settleLedger(delta) {
     const attest = await window.nostr.signEvent({ kind: 20779, created_at: claim.t, tags: [['t', 'lp-cash']], content: JSON.stringify(claim) });
     await fetch(`${CROUPIER}/room/send`, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ room: 'CASH01', msg: { from: 'cash-' + attest.pubkey.slice(0, 8), seq: Date.now() % 100000, type: 'cashhand', attest } }) });
-    caption('⚡ signed to the ledger…');
-    for (let i = 0; i < 10; i++) { await sleep(700); await refreshBalances(); }
-    caption('');
+    caption('⚡ signing to the ledger…');
+    let booked = null;
+    for (let i = 0; i < 12 && !booked; i++) {
+      await sleep(700);
+      booked = await fetchLedgerFor(commitFull);
+    }
+    if (booked) {
+      sLedger();
+      const [meB, citB] = Object.values(booked.balances);
+      caption(`⚡ booked: ${delta >= 0 ? '+' : ''}${delta} sats · you ${meB.toLocaleString()} · citizen ${citB.toLocaleString()}`);
+      $('#balances').innerHTML = `you <b style="color:var(--gold)">${meB.toLocaleString()}</b> · citizen <b style="color:var(--gold)">${citB.toLocaleString()}</b> sats`;
+    } else {
+      caption('⚠ ledger did not confirm this hand — the cashier may be down; the hand is unsettled');
+    }
   } catch { caption('signing declined — hand not settled'); }
 }
 
@@ -524,14 +565,17 @@ async function playHand() {
   $('#tmeta').textContent = `limit hold'em · 10/20 sats · hand #${handNo} · ${commit8}`;
   dealCards();
   render();
+  sCard();
+  sPos(h.button === HERO);
   let lastStreet = 0, guard = 0;
   while (h.phase === 'act' && guard++ < 200) {
-    if (h.street !== lastStreet) { lastStreet = h.street; shownBoard = [0, 3, 4, 5][h.street]; render(); await sleep(200); }
+    if (h.street !== lastStreet) { lastStreet = h.street; shownBoard = [0, 3, 4, 5][h.street]; render(); sCard(); await sleep(200); }
     const L = legal(h);
     if (L.seat === HERO) {
       render();
       const a = await heroTurn(L);
       act(h, a);
+      if (a.action !== 'fold') sChip();
       seats[HERO].said.textContent = a.action + (a.amount ? ' ' + a.amount : '');
     } else {
       await sleep(250 + Math.random() * 350);
@@ -549,6 +593,7 @@ async function playHand() {
       }
       if (!a) a = ladderDecide(h, BOT, L, T.table, 0, Math.random);
       act(h, a);
+      if (a.action !== 'fold') sChip();
       seats[BOT].said.textContent = a.action + (a.amount ? ' ' + a.amount : '');
     }
     render();
@@ -562,6 +607,10 @@ async function playHand() {
     const winCards = new Set();
     for (const w of winSeats) for (const c of bestFive([...h.seats[w].hole, ...h.board])) winCards.add(c);
     [...$('#board').children].forEach((el, bi) => el.classList.add(winCards.has(h.board[bi]) ? 'win' : 'dead'));
+    for (const i of [0, 1]) {
+      const won = winSeats.has(i);
+      [...seats[i].cards.children].forEach((el, ci) => el.classList.add(won && winCards.has(h.seats[i].hole[ci]) ? 'win' : 'dead'));
+    }
     const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
     $('#verdict').innerHTML = Object.entries(r.evals ?? {}).map(([i, e]) =>
       `<span class="vtag ${winSeats.has(+i) ? 'vw' : 'vl'}">${+i === HERO ? 'You' : 'Citizen'}: ${cap(handName(e))}</span>`).join('');
