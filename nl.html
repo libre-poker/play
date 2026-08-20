@@ -367,7 +367,7 @@ a{color:#5fc7d6}
 </div>
 
 <script type="module">
-import { evaluate, bestFive, rankOf, suitOf, RANKS, rngFromSeed, shuffledDeck } from './engine/poker.js';
+import { evaluate, bestFive, rankOf, suitOf, RANKS, handName, shuffledDeck } from './engine/poker.js';
 import { setEquityEdges } from './engine/ladder.js';
 import { HUNL } from './engine/hunl.js';
 
@@ -540,7 +540,7 @@ async function playHand() {
     [...$('#board').children].forEach((el, bi) => el.classList.add(winCards.has(board[bi]) ? 'win' : 'dead'));
     const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
     $('#verdict').innerHTML = [0, 1].map((abs) =>
-      `<span class="vtag ${winAbs === abs || winAbs < 0 ? 'vw' : 'vl'}">${abs === heroAbs ? 'You' : 'Bot'}: ${evaluate([...holes[abs], ...board]).score && cap(String(RANKS[rankOf(bestFive([...holes[abs], ...board])[0])]))}…</span>`).join('');
+      `<span class="vtag ${winAbs === abs || winAbs < 0 ? 'vw' : 'vl'}">${abs === heroAbs ? 'You' : 'Bot'}: ${cap(handName(evaluate([...holes[abs], ...board])))}</span>`).join('');
   }
   $('#pot').classList.add('winline');
   $('#pot').textContent = heroU > 0 ? 'You win ' + heroU : heroU < 0 ? 'Bot wins ' + (-heroU) : 'Split pot';
