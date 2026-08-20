@@ -355,8 +355,8 @@ a{color:#5fc7d6}
   <div id="bp-depstatus" style="font-size:11.5px;color:var(--ink-soft);line-height:1.55">Every nostr account has its own address — cashier key + sha256 of your DID, derived right here in the page. Send testnet4 sats to it, then check — 0-conf counts here.</div>
   <div style="height:1px;background:#ffffff22;margin:3px 0"></div>
   <div class="bp-title">WITHDRAW — ledger sats → your wallet</div>
-  <input id="bp-addr" placeholder="your testnet4 address (tb1…)" spellcheck="false" autocomplete="off">
-  <input id="bp-amt" type="number" min="1000" step="500" value="5000" title="amount in sats">
+  <input id="bp-addr" placeholder="your testnet4 address (tb1…)" spellcheck="false" autocomplete="off" oninput="this.dispatchEvent(new CustomEvent('wd',{bubbles:true}))">
+  <input id="bp-amt" type="number" min="1000" step="500" value="5000" title="amount in sats" oninput="this.dispatchEvent(new CustomEvent('wd',{bubbles:true}))">
   <button id="bp-go">WITHDRAW</button>
   <div id="bp-status">You sign, the cashier pays on-chain from the vault. The 500-sat miner fee comes out of the amount; the rest arrives at your address.</div>
 </div>
@@ -715,7 +715,9 @@ $('#bp-depcheck').addEventListener('click', async () => {
 
 // ---- the bank: withdraw book sats to your own testnet4 wallet
 const bankPanel = $('#bankpanel');
-$('#b-bank').addEventListener('click', () => { bankPanel.classList.toggle('open'); audio(); if (bankPanel.classList.contains('open')) drawDeposit(); });
+const disarmWithdraw = () => { const g = $('#bp-go'); if (g.dataset.armed) { delete g.dataset.armed; g.textContent = 'WITHDRAW'; } };
+bankPanel.addEventListener('wd', disarmWithdraw);   // any edit to amount/address re-arms from scratch
+$('#b-bank').addEventListener('click', () => { bankPanel.classList.toggle('open'); audio(); disarmWithdraw(); if (bankPanel.classList.contains('open')) drawDeposit(); });
 const bpStatus = (t) => { $('#bp-status').innerHTML = t; };
 $('#bp-go').addEventListener('click', async () => {
   if (!window.xlogin?.id) return bpStatus('⚠ log in first — the xlogin button, bottom right. Withdrawals are signed with your key.');
@@ -723,6 +725,15 @@ $('#bp-go').addEventListener('click', async () => {
   const amount = Math.trunc(Number($('#bp-amt').value));
   if (!/^tb1[a-z0-9]{20,}$/.test(address)) return bpStatus('⚠ that does not look like a testnet4 address (tb1…)');
   if (!(amount >= 1000)) return bpStatus('⚠ minimum withdrawal is 1,000 sats');
+  // two-step confirm: real coins move here, so the first click only arms it
+  if (!$('#bp-go').dataset.armed) {
+    $('#bp-go').dataset.armed = '1';
+    $('#bp-go').textContent = `CONFIRM: send ${(amount - 500).toLocaleString()} sats?`;
+    bpStatus(`⚠ this sends <b>${(amount - 500).toLocaleString()} sats</b> on-chain to<br>${address}<br>Click again to confirm, or reopen the panel to cancel.`);
+    return;
+  }
+  $('#bp-go').textContent = 'WITHDRAW';
+  delete $('#bp-go').dataset.armed;
   $('#bp-go').disabled = true;
   try {
     const claim = { claim: 'withdraw', game: GAME, amount, address, t: Math.floor(Date.now() / 1000) };
