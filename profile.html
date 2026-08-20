@@ -11,6 +11,7 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<script src="https://unpkg.com/xlogin"></script>
 <style>
 :root{
   --room:#241c15; --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
@@ -131,24 +132,25 @@ function heroNet(d) {
       btn.textContent = '🖋 link a nostr identity';
       btn.style.cssText = 'margin-top:12px;background:#3d6ea5;color:#fff;border:0;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit';
       btn.addEventListener('click', async () => {
-        let did = null, attest = null;
+        // the xlogin pattern: one widget, extension or 64-hex key, and
+        // afterwards window.nostr signs regardless of the route in
+        if (!window.xlogin?.id) {
+          if (!window.xlogin?.login) { btn.textContent = 'xlogin unavailable'; return; }
+          btn.textContent = 'log in via the widget, then click again';
+          window.xlogin.login();
+          return;
+        }
         const claim = { claim: 'controls-player', submitter: id, t: Math.floor(Date.now() / 1000) };
-        if (window.nostr) {
-          try {
-            const pk = await window.nostr.getPublicKey();
-            did = 'did:nostr:' + pk;
-            attest = await window.nostr.signEvent({ kind: 20778, created_at: claim.t, tags: [['t', 'lp-link']], content: JSON.stringify(claim) });
-          } catch { /* user declined */ }
-        }
-        if (!did) {
-          const raw = prompt('No NIP-07 extension found (or signing declined).\nPaste an npub or did:nostr:<hex> to link it UNSIGNED:');
-          if (!raw) return;
-          did = raw.startsWith('did:') ? raw : 'did:nostr:' + raw.replace(/^npub/, '');
-        }
+        let attest = null;
+        try {
+          attest = await window.nostr.signEvent({ kind: 20778, created_at: claim.t, tags: [['t', 'lp-link']], content: JSON.stringify(claim) });
+        } catch { btn.textContent = 'signing declined'; return; }
+        const did = 'did:nostr:' + attest.pubkey;
         const doc = { type: 'Link', v: 0, root: 'link-' + id, submitter: id, did, t: claim.t };
         const res = await fetch(`${CROUPIER}/archive`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ doc, submitter: id, attest }) }).then((x) => x.json()).catch(() => null);
         btn.textContent = res?.ok ? '🖋 linked — reload to see it' : 'link failed';
       });
+      document.addEventListener('xlogin', () => { btn.textContent = '🖋 link ' + (window.xlogin?.id || '').slice(0, 8) + '… to this player'; });
       $('#card').appendChild(btn);
     }
     if (rp) {
