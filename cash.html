@@ -474,7 +474,6 @@ async function refreshBalances() {
     const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(CASHIER_DID)}&limit=5`).then((x) => x.json());
     const led = (r.hands || []).map((x) => x.doc).filter((d) => d.type === 'Ledger' && d.balances).sort((a, b) => (b.seq || 0) - (a.seq || 0))[0];
     if (led) {
-      const [me, cit] = Object.entries(led.balances);
       const mine = led.balances[myDid()] ?? Object.values(led.balances)[0];
       const cit = led.balances[CITIZEN_FULL_DID] ?? Object.values(led.balances)[1];
       $('#balances').innerHTML = `you <b style="color:var(--gold)">${mine.toLocaleString()}</b> · citizen <b style="color:var(--gold)">${cit.toLocaleString()}</b> sats`;
