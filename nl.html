@@ -446,7 +446,30 @@ const seats = [0, 1].map((i) => ({
 }));
 const dom = (abs) => abs === heroAbs ? 0 : 1;
 
+// cards render exactly once, when they appear — never again
+let botRevealed = false;
+function dealCards() {
+  botRevealed = false;
+  for (const abs of [0, 1]) {
+    const d = seats[dom(abs)];
+    d.cards.innerHTML = '';
+    for (const c of holes[abs]) d.cards.appendChild(abs === heroAbs ? cardEl(ascii(c)) : backEl());
+  }
+}
+function syncBoard() {
+  const b = $('#board');
+  while (b.children.length < shownBoard) b.appendChild(cardEl(ascii(board[b.children.length])));
+}
+function revealBot() {
+  if (botRevealed) return;
+  botRevealed = true;
+  const d = seats[dom(1 - heroAbs)];
+  d.cards.innerHTML = '';
+  for (const c of holes[1 - heroAbs]) d.cards.appendChild(cardEl(ascii(c)));
+}
 function render(reveal = false) {
+  if (reveal) revealBot();
+  syncBoard();
   for (const abs of [0, 1]) {
     const d = seats[dom(abs)];
     d.nm.textContent = abs === heroAbs ? 'You' : 'NL Bot v0';
@@ -455,9 +478,6 @@ function render(reveal = false) {
     d.bb.textContent = (stack / 20).toFixed(0) + ' BB';
     d.pos.textContent = abs === 0 ? 'SB' : 'BB';
     d.root.classList.toggle('glow', !st.done && st.actor === abs);
-    d.cards.innerHTML = '';
-    const hole = holes[abs];
-    for (const c of hole) d.cards.appendChild(abs === heroAbs || reveal ? cardEl(ascii(c)) : backEl());
     const bet = $('#bet-' + dom(abs));
     const amt = st.streetC[abs] * U;
     bet.classList.toggle('show', amt > 0 && !st.done);
@@ -465,8 +485,6 @@ function render(reveal = false) {
   }
   const carried = (st.contrib[0] + st.contrib[1] - st.streetC[0] - st.streetC[1]) * U;
   $('#pot').textContent = carried > 0 ? 'Pot ' + carried.toLocaleString() : '';
-  $('#board').innerHTML = '';
-  for (let i = 0; i < shownBoard; i++) $('#board').appendChild(cardEl(ascii(board[i])));
   $('#table').classList.toggle('boardout', shownBoard > 0);
   const btnDom = dom(0);
   document.querySelectorAll('.dbtn').forEach((e) => e.remove());
@@ -533,7 +551,8 @@ async function playHand() {
   shownBoard = 0;
   st = HUNL.initial();
   $('#verdict').textContent = '';
-  document.querySelectorAll('#board .card, .fcards .card').forEach((el) => el.classList.remove('win', 'dead'));
+  $('#board').innerHTML = '';
+  dealCards();
   render();
   sCard();
   sPos(heroAbs === 0);
