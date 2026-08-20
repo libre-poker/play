@@ -121,6 +121,36 @@ function heroNet(d) {
   if (id.startsWith('p-')) {
     // a player's public page: their own archive tells their story
     const rp = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(id)}&limit=200`).then((x) => x.json()).catch(() => null);
+    // a Link document ties this player id to a nostr identity
+    const link = rp && (rp.hands || []).find((x) => x.doc.type === 'Link');
+    if (link) {
+      const did = link.doc.did;
+      $('#idstr').innerHTML = id + ` · linked to <a href="profile.html?id=${encodeURIComponent(did)}" style="color:#5fc7d6">${did.slice(0, 28)}…</a> ${link.attest ? '🖋 signed' : '(declared, unsigned)'}`;
+    } else if (id === localStorage.getItem('lp.submitter')) {
+      const btn = document.createElement('button');
+      btn.textContent = '🖋 link a nostr identity';
+      btn.style.cssText = 'margin-top:12px;background:#3d6ea5;color:#fff;border:0;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit';
+      btn.addEventListener('click', async () => {
+        let did = null, attest = null;
+        const claim = { claim: 'controls-player', submitter: id, t: Math.floor(Date.now() / 1000) };
+        if (window.nostr) {
+          try {
+            const pk = await window.nostr.getPublicKey();
+            did = 'did:nostr:' + pk;
+            attest = await window.nostr.signEvent({ kind: 20778, created_at: claim.t, tags: [['t', 'lp-link']], content: JSON.stringify(claim) });
+          } catch { /* user declined */ }
+        }
+        if (!did) {
+          const raw = prompt('No NIP-07 extension found (or signing declined).\nPaste an npub or did:nostr:<hex> to link it UNSIGNED:');
+          if (!raw) return;
+          did = raw.startsWith('did:') ? raw : 'did:nostr:' + raw.replace(/^npub/, '');
+        }
+        const doc = { type: 'Link', v: 0, root: 'link-' + id, submitter: id, did, t: claim.t };
+        const res = await fetch(`${CROUPIER}/archive`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ doc, submitter: id, attest }) }).then((x) => x.json()).catch(() => null);
+        btn.textContent = res?.ok ? '🖋 linked — reload to see it' : 'link failed';
+      });
+      $('#card').appendChild(btn);
+    }
     if (rp) {
       const hs = (rp.hands || []).filter((x) => x.doc.type !== 'Match');
       const ms = (rp.hands || []).filter((x) => x.doc.type === 'Match');
