@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libre Poker · rankings</title>
+<meta name="description" content="The board: every player and bot in the ecosystem, ranked — anchors measured by gauntlet, agents by signed careers, humans by their archived matches.">
+<meta property="og:title" content="Rankings — Libre Poker">
+<meta property="og:description" content="Humans and machines on one board: the ladder's measured anchors, the declared agents' careers, and the players' archived ratings.">
+<meta property="og:image" content="https://librepoker.org/og-librepoker.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<style>
+:root{
+  --room:#241c15; --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
+  --gold:#e9c15c; --line:#ffffff18; --card:#2e251c;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roman',serif;min-height:100vh}
+#top{display:flex;align-items:baseline;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+#top h1{font-size:19px;letter-spacing:.14em;color:var(--gold);font-weight:700}
+#top h1 b{color:var(--ink)}
+#top a{color:#5fc7d6;font-size:13px;text-decoration:none}
+#wrap{max-width:840px;margin:0 auto;padding:20px 22px 60px}
+.row{display:flex;gap:14px;align-items:baseline;padding:10px 14px;border-radius:8px;font-size:15px;
+  font-variant-numeric:tabular-nums}
+.row:hover{background:#ffffff0a}
+.row .rk{width:34px;color:var(--ink-mut);text-align:right}
+.row .av{width:30px}
+.row .nm{flex:1}
+.row .nm a{color:var(--ink);text-decoration:none;font-weight:700}
+.row .nm a:hover{color:var(--gold)}
+.row .nm .kind{color:var(--ink-mut);font-size:12px;padding-left:8px}
+.row .rt{width:90px;text-align:right;font-weight:800;color:var(--gold)}
+.row .src{width:110px;text-align:right;color:var(--ink-mut);font-size:12px}
+.row .vol{width:130px;text-align:right;color:var(--ink-soft);font-size:13px}
+.hdr{display:flex;gap:14px;padding:6px 14px;color:var(--ink-mut);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase}
+.hdr .rk{width:34px}.hdr .av{width:30px}.hdr .nm{flex:1}.hdr .rt{width:90px;text-align:right}
+.hdr .src{width:110px;text-align:right}.hdr .vol{width:130px;text-align:right}
+.note{color:var(--ink-mut);font-size:12.5px;padding:20px 14px;line-height:1.7}
+</style>
+</head>
+<body>
+<div id="top">
+  <h1><b>Libre</b> Poker · rankings</h1>
+  <span style="flex:1"></span>
+  <a href="history.html">history</a>
+  <a href="./">the table</a>
+</div>
+<div id="wrap">
+  <div class="hdr"><span class="rk">#</span><span class="av"></span><span class="nm">who</span><span class="rt">⚡</span><span class="src">source</span><span class="vol">record</span></div>
+  <div id="board">loading…</div>
+  <div class="note">Proof-of-concept board. Sources mean what they say: <b>anchor</b> ratings are measured by
+  gauntlet and calibration against the reigning champion; <b>signed career</b> ratings come from attested
+  rated runs; <b>archived</b> ratings are self-reported by the player's client and recorded per match —
+  recomputable from the archive, verified by nobody yet. The monk holds the floor so that everyone
+  else knows where zero is.</div>
+</div>
+<script>
+const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
+const $ = (s) => document.querySelector(s);
+
+const FIXED = [
+  { av: '🤖', name: 'Bot · Lv 7 — Champion II', id: 'librepoker-ladder@1', r: 2503, src: 'anchor', rec: 'EHS2 · 296M iters' },
+  { av: '🤖', name: 'Bot · Lv 6', id: 'librepoker-ladder@1', r: 2496, src: 'anchor', rec: '' },
+  { av: '🤖', name: 'Bot · Lv 5', id: 'librepoker-ladder@1', r: 2490, src: 'anchor', rec: '' },
+  { av: '🪪', name: 'Citizen 455c405b', id: 'did:nostr:455c405b9473a0f751c3166e3008411ce4fecb7fef217bbb8baaf5f535383a10', r: 2485, src: 'signed career', rec: '100 rated matches' },
+  { av: '🤖', name: 'Bot · Lv 4', id: 'librepoker-ladder@1', r: 2469, src: 'anchor', rec: '' },
+  { av: '🤖', name: 'Bot · Lv 3', id: 'librepoker-ladder@1', r: 2443, src: 'anchor', rec: '' },
+  { av: '🤖', name: 'Bot · Lv 2', id: 'librepoker-ladder@1', r: 2401, src: 'anchor', rec: '' },
+  { av: '🙏', name: 'The Monk', id: 'did:nostr:3619ab7bc05f9f35351984912f9d73dc0fa9f3904d5da2c2d1a64315d3f067aa', r: 2368, src: 'signed career', rec: 'the measured floor' },
+  { av: '✨', name: 'The Abbot', id: 'did:nostr:d2e78f6e8df142e621fbe8b50aa372ce14941b880b3016502216f683fd940155', r: 2358, src: 'signed career', rec: '100 rated matches' },
+];
+
+(async () => {
+  const players = [];
+  try {
+    const r = await fetch(`${CROUPIER}/archive?limit=200`).then((x) => x.json());
+    const bySub = {};
+    for (const row of (r.hands || [])) {
+      if (!row.submitter.startsWith('p-')) continue;
+      (bySub[row.submitter] ||= { hands: 0, matches: [], sub: row.submitter });
+      if (row.doc.type === 'Match') bySub[row.submitter].matches.push(row);
+      else bySub[row.submitter].hands++;
+    }
+    for (const p of Object.values(bySub)) {
+      const rated = p.matches.filter((m) => m.doc.ratingAfter != null).sort((a, b) => b.t - a.t);
+      players.push({
+        av: '👤', name: 'Player ' + p.sub.slice(2, 10), id: p.sub,
+        r: rated[0]?.doc.ratingAfter ?? null, src: rated.length ? 'archived' : 'unrated',
+        rec: `${p.matches.length} matches · ${p.hands} hands`,
+      });
+    }
+  } catch { /* board still shows the bots */ }
+
+  const rows = [...FIXED, ...players].sort((a, b) => (b.r ?? -1) - (a.r ?? -1));
+  $('#board').innerHTML = rows.map((e, i) => `
+    <div class="row">
+      <span class="rk">${i + 1}</span>
+      <span class="av">${e.av}</span>
+      <span class="nm"><a href="profile.html?id=${encodeURIComponent(e.id)}">${e.name}</a><span class="kind">${e.id.startsWith('did:') ? 'declared' : e.id.startsWith('p-') ? 'player' : 'house'}</span></span>
+      <span class="rt">${e.r ?? '—'}</span>
+      <span class="src">${e.src}</span>
+      <span class="vol">${e.rec}</span>
+    </div>`).join('');
+})();
+</script>
+</body>
+</html>
