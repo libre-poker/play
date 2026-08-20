@@ -1225,6 +1225,8 @@ async function playOnlineHand() {
         } catch (e) {
           // a bot that stays silent through several resyncs is a dead seat:
           // route into the same recovery as a dead deal (void hand, re-summon)
+          console.warn(`[lp] act-wait miss #${attempt + 1}: want sid=${NET.sid?.slice(0, 8)} from=${NET.oppPid?.slice(0, 8)} · inbox=${netInbox.length} seen=${roomSeen.size}`,
+            netInbox.slice(-3).map((x) => `${x.type}/${x.sid?.slice(0, 6)}/${(x.from || '').slice(0, 6)}`));
           if (attempt >= 3 && (NET.oppAgent || '').startsWith('librepoker-')) throw new Error('table timeout');
           if (attempt >= 28) throw e;           // humans get the long patience
           caption(`waiting for ${oppName}… (resyncing)`);
@@ -1372,6 +1374,11 @@ async function startOnlineMatch() {
     }
     try { await playOnlineHand(); } catch (e) {
       const botSeat = (NET.oppAgent || '').startsWith('librepoker-');
+      if (botSeat && !NET.summon) {
+        // an inherited seat: reconstruct the summon from its declaration
+        const m2 = /^librepoker-([a-z]+)@/.exec(NET.oppAgent || '');
+        if (m2) NET.summon = { bot: m2[1], level: NET.oppLevel || 7 };
+      }
       if (String(e.message).includes('table timeout') && botSeat && NET.summon) {
         caption('the bot seat went quiet — summoning a fresh one…');
         NET.handNo--; handNo--;               // the dead hand never happened
@@ -1431,7 +1438,8 @@ async function startOnlineMatch() {
     }
   }
   HERO_SEAT = 0;
-  caption('online match over — <a href="?">back to the bot</a>');
+  const why = $('#caption').textContent;
+  caption((why && !why.startsWith('⚡') ? why + ' — ' : '') + 'online match over — <a href="?">back to the bot</a>');
 }
 
 function startHeartbeat() {
@@ -1528,7 +1536,8 @@ async function startOnlineGuestLoop() {
     try { await playOnlineHand(); } catch (e) { caption('online hand failed: ' + (e.message || e)); break; }
   }
   HERO_SEAT = 0;
-  caption('online match over — <a href="?">back to the bot</a>');
+  const why = $('#caption').textContent;
+  caption((why && !why.startsWith('⚡') ? why + ' — ' : '') + 'online match over — <a href="?">back to the bot</a>');
 }
 $('#b-online').addEventListener('click', () => enterLobby(null));
 
