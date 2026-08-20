@@ -428,7 +428,7 @@ const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest('SH
 // ---- the strategy
 let T = null;
 caption('fetching the young strategy…');
-T = await fetch('strategy-nl.json?v=nl0').then((r) => r.json());
+T = await fetch('strategy-nl.json?v=nl1').then((r) => r.json());
 if (T.edges) setEquityEdges(T.edges);
 caption('');
 $('#tmeta').textContent = `no-limit hold'em · 10/20 · 100bb · heads-up · opponent: ${T.iterations.toLocaleString()} iters`;

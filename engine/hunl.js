@@ -5,13 +5,14 @@
 // convention: SB=1, BB=2, stacks 200 (100bb), everything integer.
 //
 //   actions: f fold · k check/call · h half-pot · p pot · a all-in
-//   raise cap: 2 aggressive actions per street (abstraction only — the
-//   referee downstairs enforces the real rules)
+//   raise caps per street (abstraction only — the referee downstairs
+//   enforces the real rules): preflop 4 counting the blind, so the full
+//   open / 3-bet / 4-bet war exists; postflop bet + raise
 import { evaluate } from './poker.js';
 import { streetBucket } from './ladder.js';
 
 const STACK = 200;
-const RAISE_CAP = 2;
+const CAPS = [4, 2, 2, 2];               // per-street aggressive-action caps
 
 export const HUNL = {
   SB: 1, BB: 2, STACK,
@@ -47,7 +48,7 @@ export const HUNL = {
     const oppAllin = st.contrib[1 - st.actor] >= STACK;
     if (st.toCall > 0) {
       acts.push('k');
-      if (!oppAllin && st.raises < RAISE_CAP && t.stack > t.call) {
+      if (!oppAllin && st.raises < CAPS[st.street] && t.stack > t.call) {
         if (t.h < t.a) acts.push('h');
         if (t.p < t.a && t.p > t.h) acts.push('p');
         acts.push('a');
@@ -55,7 +56,7 @@ export const HUNL = {
       acts.push('f');
     } else {
       acts.push('k');
-      if (st.raises < RAISE_CAP && t.stack > 0) {
+      if (st.raises < CAPS[st.street] && t.stack > 0) {
         if (t.h < t.a) acts.push('h');
         if (t.p < t.a && t.p > t.h) acts.push('p');
         acts.push('a');
