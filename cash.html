@@ -331,6 +331,7 @@ a{color:#5fc7d6}
   <span id="cashbadge" title="Testnet4 sats via the independent cashier — every hand settles on a signed ledger">⚡ SATS · testnet4 PoC</span>
   <span class="spacer"></span>
   <span class="meta" id="balances">ledger…</span>
+  <button class="chip" id="b-sound" title="Sound"></button>
 </div>
 
 <div id="stage">
@@ -631,6 +632,10 @@ async function playHand() {
   $('#actions').innerHTML = '';
   $('#pot').classList.remove('winline');
 }
+const sndBtn = $('#b-sound');
+const drawSnd = () => { sndBtn.textContent = soundOn ? '🔊' : '🔇'; };
+sndBtn.addEventListener('click', () => { soundOn = !soundOn; localStorage.setItem('lp.sound', soundOn ? '1' : '0'); drawSnd(); audio(); });
+drawSnd();
 (async () => { for (;;) await playHand(); })();
 </script>
 </body>
