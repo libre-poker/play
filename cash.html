@@ -345,6 +345,7 @@ a{color:#5fc7d6}
   <span class="spacer"></span>
   <span class="meta" id="balances">ledger…</span>
   <button class="chip" id="b-sound" title="Sound"></button>
+  <button class="chip" id="b-fourc" title="Four-color deck">🎨</button>
   <button class="chip" id="b-bank" title="Withdraw sats from your ledger balance to your own testnet4 wallet">🏦 bank</button>
 </div>
 <div id="bankpanel">
@@ -742,6 +743,20 @@ $('#bp-go').addEventListener('click', async () => {
   } catch { bpStatus('signing declined — nothing sent, nothing moved'); }
   $('#bp-go').disabled = false;
 });
+
+// four-color deck: same setting, same key as the production table
+let fourColor = localStorage.getItem('lp.fourc') !== '0';   // default on: a trainer reads suits fast
+const drawFourc = () => {
+  document.body.classList.toggle('fourc', fourColor);
+  $('#b-fourc').classList.toggle('on', fourColor);
+};
+$('#b-fourc').addEventListener('click', () => {
+  fourColor = !fourColor;
+  localStorage.setItem('lp.fourc', fourColor ? '1' : '0');
+  drawFourc();
+  audio();
+});
+drawFourc();
 
 const sndBtn = $('#b-sound');
 const drawSnd = () => { sndBtn.textContent = soundOn ? '🔊' : '🔇'; };
