@@ -62,7 +62,7 @@ body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roma
   <span class="meta" id="who"></span>
   <span style="flex:1"></span>
   <a href="rankings.html">rankings</a>
-  <a href="./">← back to the table</a>
+  <a href="./" id="backlink">← back to the table</a>
 </div>
 <div id="wrap">
   <div id="stats"></div>
@@ -77,8 +77,12 @@ body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roma
 <div id="modal"><div id="mbox"><span class="x" onclick="document.getElementById('modal').classList.remove('open')">✕</span><h2 id="mtitle"></h2><div id="tr"></div></div></div>
 <script>
 const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
-const submitter = localStorage.getItem('lp.submitter');
+const qsSub = new URLSearchParams(location.search).get('submitter');
+const mine = localStorage.getItem('lp.submitter');
+const submitter = qsSub || mine;
+const viewingOwn = !qsSub || qsSub === mine;
 const $ = (s) => document.querySelector(s);
+try { const rm = localStorage.getItem('lp.room'); if (rm) document.getElementById('backlink').href = './?join=' + rm; } catch { /* fine */ }
 const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };
 const red = (a) => a[1] === 'd' || a[1] === 'h';
 const pc = (a) => `<b style="color:${red(a) ? 'var(--danger)' : 'var(--ink)'}">${a[0] === 'T' ? '10' : a[0]}${GLYPH[a[1]]}</b>`;
@@ -194,7 +198,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#modal'
 (async () => {
   let ratLine = '';
   try {
-    const r = JSON.parse(localStorage.getItem('lp.rating') || 'null');
+    const r = viewingOwn ? JSON.parse(localStorage.getItem('lp.rating') || 'null') : null;
     if (r) ratLine = ` · ⚡ ${Math.round(r.r)}${r.rd > 110 ? '?' : ''} (RD ${Math.round(r.rd)})`;
   } catch { /* unrated */ }
   $('#who').innerHTML = (submitter ? `archive of <a href="profile.html?id=${encodeURIComponent(submitter)}" style="color:#5fc7d6;text-decoration:none">${submitter}</a>` : 'no submitter id yet — play a hand first') + ratLine;

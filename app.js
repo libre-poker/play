@@ -1023,6 +1023,7 @@ function wireSummon() {
 let roomSeen = new Set();
 function openRoomChannel(preserveSeen = false) {
   if (!preserveSeen) roomSeen = new Set();
+  try { localStorage.setItem('lp.room', NET.room); } catch { /* fine */ }
   const es = new EventSource(`${CROUPIER}/room/events?room=${NET.room}`);
   NET.es = es;
   es.onmessage = (e) => {
