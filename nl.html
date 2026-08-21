@@ -425,13 +425,17 @@ document.addEventListener('keydown', audio);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((x) => x.toString(16).padStart(2, '0')).join('');
 
-// ---- the strategy
+// ---- the strategy: versioned immutable brain from the brains repo,
+// local table as fallback if it can't be reached (?brain= overrides)
+const BRAIN = new URLSearchParams(location.search).get('brain') || 'https://librepoker.org/brains/strategy-nl-slim5k-v1.json';
 let T = null;
-caption('fetching the young strategy…');
-T = await fetch('strategy-nl.json?v=nl1').then((r) => r.json());
+caption('fetching the brain…');
+try { T = await fetch(BRAIN).then((r) => { if (!r.ok) throw 0; return r.json(); }); }
+catch { caption('brains repo unreachable — falling back to the local table'); T = await fetch('strategy-nl.json?v=nl1').then((r) => r.json()); }
+if (T.abstraction && T.abstraction !== 'hunl-ehs2-3size-v0') { caption('⚠ brain speaks a different abstraction — refusing it'); T = await fetch('strategy-nl.json?v=nl1').then((r) => r.json()); }
 if (T.edges) setEquityEdges(T.edges);
 caption('');
-$('#tmeta').textContent = `no-limit hold'em · 10/20 · 100bb · heads-up · opponent: ${T.iterations.toLocaleString()} iters`;
+$('#tmeta').textContent = `no-limit hold'em · 10/20 · 100bb · heads-up · opponent: ${T.iterations.toLocaleString()} iters · ${T.infosets.toLocaleString()} infosets`;
 
 // ---- the table state (the HUNL abstract game IS the game here)
 const U = 10;                               // 1 unit = 10 chips for display
@@ -535,7 +539,9 @@ document.addEventListener('keydown', (e) => {
 function botAct() {
   const key = HUNL.infoset(st, holes[1 - heroAbs], board.slice(0, BOARD_N[st.street]));
   const acts = HUNL.actions(st);
-  const probs = (T.table[key] && T.table[key].length === acts.length) ? T.table[key] : acts.map(() => 1 / acts.length);
+  let probs = (T.table[key] && T.table[key].length === acts.length) ? T.table[key] : null;
+  if (!probs && T.fallback === 'call') return 'k';        // slim brains: check/call at unlisted nodes, never uniform
+  if (!probs) probs = acts.map(() => 1 / acts.length);
   let x = Math.random(), pick = acts.length - 1;
   for (let i = 0; i < acts.length; i++) { x -= probs[i]; if (x <= 0) { pick = i; break; } }
   return acts[pick];
