@@ -50,6 +50,14 @@
     padding:7px 18px;font-size:13px;font-weight:800;
   }
   #empty{color:var(--ink-soft);font-size:14px;padding:18px 4px}
+  .badge{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;
+    padding:3px 10px;border-radius:20px;white-space:nowrap}
+  .badge.live{color:#8fd0a0;border:1px solid rgba(143,208,160,.45)}
+  .badge.stale{color:#d66;border:1px solid rgba(221,102,102,.45)}
+  .badge.open{color:#7fd4e6;border:1px solid rgba(127,212,230,.4)}
+  .venue .why{font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5}
+  .venue .host{font-family:ui-monospace,monospace;font-size:11px;color:#8d8272;margin-top:3px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
   .foot{margin-top:36px;font-size:13px;color:var(--ink-soft)}
   .foot a{color:var(--accent)}
 </style>
@@ -66,11 +74,17 @@
     <button id="create">CREATE TABLE</button>
   </div>
 
-  <h2>OPEN TABLES</h2>
+  <h2>THE VENUES</h2>
+  <div id="venues"></div>
+
+  <h2 style="margin-top:26px">OPEN TABLES</h2>
   <div id="list"></div>
   <div id="empty" style="display:none">No open tables — create the first one.</div>
 
-  <div class="foot">A table stays listed for a day. Share
+  <div class="foot">Venues are signed Table documents in the
+  <a href="ledger.html">public archive</a>, refreshed as heartbeats by whoever keeps each
+  table's service alive — anyone can announce one; the signature says who stands behind it.
+  A room below stays listed for a day. Share
   <code>?join=CODE</code> links to invite directly; a 🤖 bot can be summoned
   from inside any table while you wait.</div>
 </div>
@@ -106,6 +120,48 @@ $('#create').addEventListener('click', async () => {
 });
 refresh();
 setInterval(refresh, 5000);
+
+// ---- the venues: signed Table heartbeats from each table's host, plus the
+// serverless tables that cannot die. Stale hearts show honestly — an honest
+// lobby never sells a seat at a dead table.
+const FRESH = 15 * 60 * 1000;
+const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const age = (ms) => ms < 90000 ? Math.round(ms / 1000) + 's' : ms < 5400000 ? Math.round(ms / 60000) + 'm' : Math.round(ms / 3600000) + 'h';
+const STATIC_VENUES = [
+  { name: 'The table', url: './', game: 'limit hold\'em · 10/20 · rated ladder',
+    why: 'Seven measured levels, Glicko-2, drill clock. Practice runs entirely in your browser.' },
+  { name: 'The NL trainer', url: 'nl.html', game: 'no-limit · 10/20 · 100bb',
+    why: 'Heads-up against the 49.8M-iteration brain — it grades every decision against its own mix.' },
+];
+async function venues() {
+  let rows = [];
+  try {
+    const r = await fetch(CROUPIER + '/archive?type=Table&limit=50').then((x) => x.json());
+    rows = (r.hands || []).sort((a, b) => b.t - a.t);
+  } catch { /* archive down: statics still render */ }
+  const announced = rows.map((r) => {
+    const d = r.doc, ago = Date.now() - r.t, live = ago < FRESH;
+    const url = /^https:\/\//.test(d.url || '') ? d.url : '#';
+    return `<div class="table-row venue" ${live ? '' : 'style="opacity:.55"'}>
+      <div><div class="nm">${esc(d.name || d.root)} <span class="code">${esc(d.stakes || '')}</span></div>
+      <div class="why">${esc(d.note || '')}${d.seats ? ' — ' + esc(d.seats) : ''}</div>
+      <div class="host">host ${esc(d.host || r.submitter)}</div></div>
+      <span class="spacer"></span>
+      <span class="badge ${live ? 'live' : 'stale'}">${live ? 'live · ' + age(ago) : 'stale · ' + age(ago)}</span>
+      <a href="${esc(url)}">SIT</a>
+    </div>`;
+  });
+  const statics = STATIC_VENUES.map((v) => `<div class="table-row venue">
+      <div><div class="nm">${esc(v.name)} <span class="code">${esc(v.game)}</span></div>
+      <div class="why">${esc(v.why)}</div></div>
+      <span class="spacer"></span>
+      <span class="badge open">always open</span>
+      <a href="${esc(v.url)}">SIT</a>
+    </div>`);
+  document.getElementById('venues').innerHTML = announced.join('') + statics.join('');
+}
+venues();
+setInterval(venues, 60000);
 </script>
 </body>
 </html>
