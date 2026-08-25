@@ -347,6 +347,7 @@ a{color:#5fc7d6}
   <button class="chip" id="b-sound" title="Sound"></button>
   <button class="chip" id="b-fourc" title="Four-color deck">🎨</button>
   <button class="chip" id="b-bank" title="Withdraw sats from your ledger balance to your own testnet4 wallet">🏦 bank</button>
+  <a class="chip" href="ledger.html" style="text-decoration:none" title="The public book: every account, every entry">📒</a>
 </div>
 <div id="bankpanel">
   <div class="bp-title">DEPOSIT — any wallet → your ledger</div>
@@ -579,7 +580,7 @@ async function settleLedger(delta) {
       caption(`⚡ booked: ${delta >= 0 ? '+' : ''}${delta} sats · you ${meB.toLocaleString()} · citizen ${citB.toLocaleString()}`);
       $('#balances').innerHTML = `you <b style="color:var(--gold)">${meB.toLocaleString()}</b> · citizen <b style="color:var(--gold)">${citB.toLocaleString()}</b> sats`;
     } else {
-      caption('⚠ ledger did not confirm this hand — the cashier may be down; the hand is unsettled');
+      caption('⚠ ledger did not confirm this hand — if your book balance is under 2,000 sats the cashier refuses to book (deposit via 🏦 first); otherwise the cashier may be down');
     }
   } catch { caption('signing declined — hand not settled'); }
 }

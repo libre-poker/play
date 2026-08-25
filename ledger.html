@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libre Poker · ledger</title>
+<meta name="description" content="The cashier's book, world-readable: every account, every hand settlement, every deposit and withdrawal — signed entries anyone can recompute, reconciled to the chain to the sat.">
+<meta property="og:title" content="Ledger — Libre Poker">
+<meta property="og:description" content="The cash game's book: accounts, settlements, and on-chain movements — every entry a signed document.">
+<meta property="og:image" content="https://librepoker.org/og-librepoker.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<style>
+:root{
+  --room:#241c15; --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
+  --gold:#e9c15c; --line:#ffffff18; --card:#2e251c; --teal:#7fd4e6;
+  --green:#8fd0a0; --red:#d66;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--room);color:var(--ink);font-family:Georgia,'Times New Roman',serif;min-height:100vh}
+#top{display:flex;align-items:baseline;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+#top h1{font-size:19px;letter-spacing:.14em;color:var(--gold);font-weight:700}
+#top h1 b{color:var(--ink)}
+#top a{color:#5fc7d6;font-size:13px;text-decoration:none}
+#wrap{max-width:840px;margin:0 auto;padding:20px 22px 60px}
+h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-mut);
+  margin:26px 0 10px;font-weight:700}
+.row{display:flex;gap:14px;align-items:baseline;padding:10px 14px;border-radius:8px;font-size:15px;
+  font-variant-numeric:tabular-nums}
+.row:hover{background:#ffffff0a}
+.acct .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.acct .amt{width:140px;text-align:right;font-weight:800;color:var(--gold)}
+.acct .addr{width:120px;text-align:right}
+.acct .addr a{color:#5fc7d6;font-size:12px;text-decoration:none}
+.ent .seq{width:44px;color:var(--ink-mut);text-align:right}
+.ent .kind{width:88px;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.ent .kind.handdelta{color:var(--ink-soft)} .ent .kind.credit{color:var(--green)} .ent .kind.withdraw{color:var(--teal)}
+.ent .what{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;color:var(--ink-soft)}
+.ent .what a{color:#5fc7d6;text-decoration:none}
+.ent .amt{width:110px;text-align:right;font-weight:800}
+.ent .amt.pos{color:var(--green)} .ent .amt.neg{color:var(--red)} .ent .amt.mv{color:var(--teal)}
+.ent .when{width:96px;text-align:right;color:var(--ink-mut);font-size:12px}
+#recon{margin-top:22px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;
+  background:var(--card);font-size:13.5px;color:var(--ink-soft);line-height:1.7}
+#recon b{color:var(--gold)}
+#recon .ok{color:var(--green);font-weight:700} #recon .off{color:var(--red);font-weight:700}
+.note{color:var(--ink-mut);font-size:12.5px;padding:20px 14px;line-height:1.7}
+.note a{color:#5fc7d6}
+</style>
+</head>
+<body>
+<div id="top">
+  <h1><b>Libre</b> Poker · ledger</h1>
+  <span style="flex:1"></span>
+  <a href="cash.html">cash table</a>
+  <a href="rankings.html">rankings</a>
+  <a href="./">the table</a>
+</div>
+<div id="wrap">
+  <h2>The book — every account, latest signed entry</h2>
+  <div id="book">loading…</div>
+  <div id="recon">checking the chain…</div>
+  <h2>Entries — newest first</h2>
+  <div id="feed"></div>
+  <div class="note">Every row is a <a href="https://github.com/libre-poker/schema/blob/gh-pages/LEDGER.md">signed
+  Ledger document</a> archived by the cashier — this page only renders; it owns nothing. Accounts are
+  <a href="https://github.com/libre-poker/schema/blob/gh-pages/PAY-TO-URI.md">pay-to-URI</a>: any nostr
+  account gains its own deposit address, derived client-side. The book must reconcile to the chain to
+  the sat: on-chain coins at the cashier's addresses = the sum of every balance. Testnet4, proof of concept.</div>
+</div>
+<script>
+const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
+const CASHIER_DID = 'did:nostr:ce9218b4144f8b54a52f3a5b2fa412cf26b0da95f067f9af9367167808a317dd';
+const MEMPOOL = 'https://mempool.space/testnet4/api';
+const $ = (s) => document.querySelector(s);
+const sats = (n) => Number(n).toLocaleString();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const short = (s) => s.length > 26 ? s.slice(0, 14) + '…' + s.slice(-8) : s;
+
+(async () => {
+  let rows;
+  try {
+    const r = await fetch(`${CROUPIER}/archive?submitter=${encodeURIComponent(CASHIER_DID)}&limit=200`).then((x) => x.json());
+    rows = (r.hands || []).map((x) => x.doc).filter((d) => d.type === 'Ledger').sort((a, b) => (b.seq || 0) - (a.seq || 0));
+  } catch { $('#book').textContent = 'archive unreachable'; return; }
+  if (!rows.length) { $('#book').textContent = 'no entries yet'; return; }
+
+  // ---- the book: latest entry carries the whole state
+  const latest = rows[0];
+  const accounts = latest.entries
+    ? latest.entries.map((e) => ({ url: e.url, amount: parseInt(e.amount, 10) }))
+    : Object.entries(latest.balances || {}).map(([url, amount]) => ({ url, amount }));
+  accounts.sort((a, b) => b.amount - a.amount);
+  const total = accounts.reduce((a, x) => a + x.amount, 0);
+  $('#book').innerHTML = accounts.map((a) => `
+    <div class="row acct">
+      <span class="nm" title="${esc(a.url)}">${esc(a.url)}</span>
+      <span class="amt">${sats(a.amount)}</span>
+      <span class="addr"><a href="#" data-uri="${esc(a.url)}">address ↗</a></span>
+    </div>`).join('') + `
+    <div class="row acct" style="border-top:1px solid var(--line)">
+      <span class="nm" style="color:var(--ink-mut)">total on the book (seq ${latest.seq})</span>
+      <span class="amt">${sats(total)}</span><span class="addr"></span>
+    </div>`;
+
+  // account address links: derive on demand via mempool (address is public info,
+  // but derivation needs the wl module — link to the cashier's known addresses instead)
+  document.querySelectorAll('[data-uri]').forEach((el) => el.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const mod = await import('./engine/wl-address.js');
+    const { address } = mod.depositAddressFor(CASHIER_DID.slice(10), el.dataset.uri);
+    window.open(`https://mempool.space/testnet4/address/${address}`, '_blank');
+  }));
+
+  // ---- the feed
+  $('#feed').innerHTML = rows.map((d) => {
+    const when = d.t ? new Date(d.t).toISOString().slice(5, 16).replace('T', ' ') : '';
+    if (d.entry === 'handdelta') {
+      const cls = d.delta >= 0 ? 'pos' : 'neg';
+      return `<div class="row ent"><span class="seq">${d.seq ?? ''}</span><span class="kind handdelta">hand</span>
+        <span class="what">root <a href="history.html?world=1" title="${esc(d.handRoot || '')}">${esc((d.handRoot || '').slice(0, 12))}</a> — ${d.delta >= 0 ? 'player wins' : 'citizen wins'}</span>
+        <span class="amt ${cls}">${d.delta >= 0 ? '+' : ''}${sats(d.delta)}</span><span class="when">${when}</span></div>`;
+    }
+    if (d.entry === 'credit') {
+      return `<div class="row ent"><span class="seq">${d.seq ?? ''}</span><span class="kind credit">credit</span>
+        <span class="what">${esc(short(d.did || ''))} deposited${d.coins ? ` — <a href="https://mempool.space/testnet4/tx/${esc((d.coins[0] || '').split(':')[0])}" target="_blank">coin ↗</a>` : ''}</span>
+        <span class="amt pos">+${sats(d.sats)}</span><span class="when">${when}</span></div>`;
+    }
+    if (d.entry === 'withdraw') {
+      return `<div class="row ent"><span class="seq">${d.seq ?? ''}</span><span class="kind withdraw">withdraw</span>
+        <span class="what">${esc(short(d.did || ''))} → ${esc(short(d.address || ''))} — <a href="https://mempool.space/testnet4/tx/${esc(d.txid || '')}" target="_blank">tx ↗</a></span>
+        <span class="amt mv">−${sats(d.amount)}</span><span class="when">${when}</span></div>`;
+    }
+    return '';
+  }).join('');
+
+  // ---- reconciliation: sum the coins at every address the cashier controls
+  try {
+    const mod = await import('./engine/wl-address.js');
+    const addrs = accounts.map((a) => mod.depositAddressFor(CASHIER_DID.slice(10), a.url).address);
+    addrs.push('tb1p6kvgfudlegzmcf67e9kn7pq0sdvax54tvm75l9hm9zlgxjdu85jq462kal'); // the vault
+    let onchain = 0;
+    for (const a of addrs) {
+      const us = await fetch(`${MEMPOOL}/address/${a}/utxo`).then((r) => r.json()).catch(() => []);
+      if (Array.isArray(us)) onchain += us.reduce((s, u) => s + u.value, 0);
+    }
+    const ok = onchain === total;
+    $('#recon').innerHTML = `Reconciliation: book total <b>${sats(total)}</b> sats · coins on-chain at the
+      cashier's addresses <b>${sats(onchain)}</b> sats — <span class="${ok ? 'ok' : 'off'}">${ok ? 'the book equals the chain ✓' : `off by ${sats(onchain - total)} (mempool lag, or an unbooked deposit awaiting its check)`}</span>`;
+  } catch { $('#recon').textContent = 'chain explorer unreachable — reconciliation skipped'; }
+})();
+</script>
+</body>
+</html>
