@@ -4,106 +4,269 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobby — Libre Poker</title>
-<meta name="description" content="The open tables of Libre Poker: create a table, join one, or summon a bot. Public by default, dealt by the croupier, verified in your browser.">
+<meta name="description" content="The casino floor: live venues announced by their hosts as signed heartbeats, always-open tables that play in your browser, and open rooms to join or create.">
 <meta property="og:title" content="Lobby — Libre Poker">
-<meta property="og:description" content="The open tables: create, join, play. Rake-free, provably dealt, casual.">
+<meta property="og:description" content="Find a table: live venues, always-open trainers, open rooms. Rake-free, provably dealt.">
 <meta property="og:image" content="https://librepoker.org/og-librepoker.png">
 <meta property="og:url" content="https://librepoker.org/play/lobby.html">
 <meta property="og:type" content="website">
 <link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
 <style>
-  :root{
-    --room:#2a2320; --room2:#3a302a; --ink:#f2ede4; --ink-soft:#b8ac9a;
-    --gold:#e9c15c; --green:#3f7d4e; --accent:#5fc7d6;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    background:radial-gradient(120% 100% at 50% 0%, var(--room2), var(--room) 70%);
-    color:var(--ink);min-height:100vh;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  }
-  .page{max-width:640px;margin:0 auto;padding:36px 20px 80px}
-  h1{font-size:24px;letter-spacing:.04em}
-  h1 b{color:var(--gold)}
-  .sub{color:var(--ink-soft);font-size:14px;margin:6px 0 26px}
-  .sub a{color:var(--accent)}
-  .make{display:flex;gap:10px;margin-bottom:30px}
-  .make input{
-    flex:1;background:#00000042;border:1px solid #ffffff22;border-radius:8px;
-    color:var(--ink);padding:10px 14px;font-size:14px;
-  }
-  .make button{
-    background:var(--green);color:#f6f2e8;border:none;border-radius:8px;
-    padding:10px 22px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.03em;
-  }
-  h2{font-size:13px;font-weight:800;letter-spacing:.16em;color:var(--ink-soft);margin-bottom:10px}
-  .table-row{
-    display:flex;align-items:center;gap:12px;background:#00000038;
-    border:1px solid #ffffff14;border-radius:10px;padding:12px 16px;margin-bottom:8px;
-  }
-  .table-row .nm{font-weight:700;font-size:15px}
-  .table-row .code{font-family:ui-monospace,monospace;font-size:12px;color:var(--gold)}
-  .table-row .info{font-size:12px;color:var(--ink-soft)}
-  .table-row .spacer{flex:1}
-  .table-row a{
-    background:#b08a3e;color:#fff;text-decoration:none;border-radius:7px;
-    padding:7px 18px;font-size:13px;font-weight:800;
-  }
-  #empty{color:var(--ink-soft);font-size:14px;padding:18px 4px}
-  .badge{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;
-    padding:3px 10px;border-radius:20px;white-space:nowrap}
-  .badge.live{color:#8fd0a0;border:1px solid rgba(143,208,160,.45)}
-  .badge.stale{color:#d66;border:1px solid rgba(221,102,102,.45)}
-  .badge.open{color:#7fd4e6;border:1px solid rgba(127,212,230,.4)}
-  .venue .why{font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5}
-  .venue .host{font-family:ui-monospace,monospace;font-size:11px;color:#8d8272;margin-top:3px;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
-  .foot{margin-top:36px;font-size:13px;color:var(--ink-soft)}
-  .foot a{color:var(--accent)}
+:root{
+  --room:#241c15; --room2:#33291f; --panel:#2b221a; --panel-hi:#332a20;
+  --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
+  --gold:#e9c15c; --gold-deep:#b08a3e; --teal:#5fc7d6;
+  --felt:#2c6e57; --felt2:#1f5240; --felt3:#17402f;
+  --rail:#9b6b3a; --rail2:#5c3a1e;
+  --live:#8fd0a0; --stale:#d66;
+  --line:#ffffff14; --line-soft:#ffffff0c;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:radial-gradient(120% 90% at 50% -10%, var(--room2), var(--room) 60%, #1a140d 100%);
+  color:var(--ink);min-height:100vh;
+  font-family:Georgia,'Times New Roman',serif;line-height:1.5;
+}
+a{color:var(--teal)}
+.lbl{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+
+/* ---- the family top bar */
+#top{display:flex;align-items:center;gap:18px;padding:13px 22px;border-bottom:1px solid var(--line)}
+#top .word{font-size:18px;letter-spacing:.1em;font-weight:700;color:var(--ink);text-decoration:none;white-space:nowrap}
+#top .word b{color:var(--gold)}
+#top .word .pg{color:var(--teal);font-weight:400}
+#top .spacer{flex:1}
+#top nav{display:flex;gap:16px}
+#top nav a{font-size:13px;text-decoration:none;color:var(--ink-soft)}
+#top nav a:hover{color:var(--teal)}
+
+.page{max-width:680px;margin:0 auto;padding:34px 20px 90px}
+
+/* ---- the crest: a miniature of the table itself, pure CSS */
+.crest{position:relative;flex:none;width:64px;height:44px}
+.crest i{
+  position:absolute;inset:0;border-radius:50%/46%;
+  background:linear-gradient(170deg,var(--rail) 0%,#7a5230 40%,var(--rail2) 80%,#3a2412 100%);
+  box-shadow:0 4px 10px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.28);
+}
+.crest b{
+  position:absolute;inset:5px;border-radius:50%/46%;
+  background:radial-gradient(ellipse 60% 52% at 50% 40%,#35836a 0%,var(--felt) 48%,var(--felt2) 80%,var(--felt3) 100%);
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.45);
+}
+.dim .crest{filter:saturate(.35) brightness(.8)}
+
+/* ---- hero */
+.hero{display:flex;align-items:center;gap:16px;margin-bottom:8px}
+.hero h1{font-size:26px;letter-spacing:.02em;font-weight:700}
+.hero h1 b{color:var(--gold)}
+.sub{color:var(--ink-soft);font-size:14.5px;margin:0 0 30px;max-width:56ch}
+
+/* ---- section labels */
+h2{
+  font-size:11.5px;font-weight:700;letter-spacing:.22em;color:var(--ink-mut);
+  margin:34px 0 12px;display:flex;align-items:center;gap:12px;
+}
+h2::after{content:'';flex:1;height:1px;background:var(--line-soft)}
+
+/* ---- venue cards */
+.venue{
+  display:flex;align-items:center;gap:18px;text-decoration:none;color:var(--ink);
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel));
+  border:1px solid var(--line);border-radius:14px;
+  padding:16px 18px;margin-bottom:12px;
+  transition:border-color .15s, transform .15s;
+}
+.venue:hover{border-color:rgba(233,193,92,.45);transform:translateY(-1px)}
+.venue:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.venue .mid{flex:1;min-width:0}
+.venue .nm{font-size:17.5px;font-weight:700;line-height:1.25}
+.venue .stakes{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+  color:var(--gold);margin-top:3px;
+}
+.venue .why{font-size:13.5px;color:var(--ink-soft);margin-top:6px;line-height:1.55;max-width:44ch}
+.venue .host{
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;color:var(--ink-mut);
+  margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.venue .side{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex:none}
+.venue.dim{opacity:.75}
+.venue.dim .nm{color:var(--ink-soft)}
+
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;white-space:nowrap}
+.badge .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.badge.live{color:var(--live)} .badge.live .dot{background:var(--live)}
+.badge.open{color:var(--teal)} .badge.open .dot{background:var(--teal)}
+.badge.stale{color:var(--stale)} .badge.stale .dot{background:var(--stale)}
+.badge small{color:var(--ink-mut);font-weight:400;letter-spacing:.08em}
+@media (prefers-reduced-motion: no-preference){
+  .badge.live .dot{animation:pulse 2.2s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(143,208,160,.5)}70%{box-shadow:0 0 0 7px rgba(143,208,160,0)}100%{box-shadow:0 0 0 0 rgba(143,208,160,0)}}
+}
+
+.cta{
+  display:inline-block;background:linear-gradient(180deg,#f0c968,var(--gold-deep));
+  color:#241d12;border-radius:8px;padding:8px 24px;
+  font-size:12.5px;font-weight:800;letter-spacing:.1em;text-decoration:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 2px 6px rgba(0,0,0,.4);
+}
+.venue:hover .cta{filter:brightness(1.06)}
+.dim .cta{background:none;box-shadow:none;border:1px solid var(--line);color:var(--ink-mut)}
+
+/* ---- open rooms */
+.make{display:flex;gap:10px;margin:0 0 6px}
+.make input{
+  flex:1;background:#00000038;border:1px solid var(--line);border-radius:9px;
+  color:var(--ink);padding:11px 14px;font-size:14px;font-family:inherit;
+}
+.make input:focus{outline:none;border-color:rgba(95,199,214,.5)}
+.make input::placeholder{color:var(--ink-mut)}
+.make button{
+  background:linear-gradient(180deg,#3f8158,#2b6142);color:#f6f2e8;border:none;border-radius:9px;
+  padding:11px 22px;font-size:12.5px;font-weight:800;letter-spacing:.1em;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 2px 6px rgba(0,0,0,.4);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+.make button:hover{filter:brightness(1.08)}
+.make button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+.room{
+  display:flex;align-items:center;gap:14px;
+  border-bottom:1px solid var(--line-soft);
+  padding:11px 6px;font-size:13.5px;
+}
+.room:last-child{border-bottom:none}
+.room .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--gold);width:74px;flex:none}
+.room .nm{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room .meta{color:var(--ink-mut);font-size:12px;white-space:nowrap}
+.room .spacer{flex:1}
+.room a{
+  border:1px solid var(--line);border-radius:7px;color:var(--ink-soft);
+  padding:5px 16px;font-size:11px;font-weight:700;letter-spacing:.12em;text-decoration:none;
+}
+.room a:hover{border-color:rgba(233,193,92,.5);color:var(--gold)}
+.room.fresh .code{color:var(--live)}
+.room.fresh a{border-color:rgba(143,208,160,.4);color:var(--live)}
+#rooms-wrap{background:#00000022;border:1px solid var(--line-soft);border-radius:12px;padding:4px 12px}
+#empty{color:var(--ink-mut);font-size:13.5px;padding:16px 6px}
+
+.foot{margin-top:40px;font-size:12.5px;color:var(--ink-mut);line-height:1.75}
+.foot a{color:var(--teal)}
+.foot code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink-soft)}
 </style>
 </head>
 <body>
-<div class="page">
-  <h1>♠ <b>Libre</b> Poker — the lobby</h1>
-  <div class="sub">Open tables, public by default — dealt by
-    <a href="https://github.com/libre-poker/croupier">the croupier</a>, proven in your
-    browser, casual always. Or <a href="./">play the trainer</a> solo.</div>
+<div id="top">
+  <a class="word" href="https://librepoker.org/"><b>Libre</b> Poker · <span class="pg">lobby</span></a>
+  <span class="spacer"></span>
+  <nav class="lbl">
+    <a href="ledger.html">ledger</a>
+    <a href="rankings.html">rankings</a>
+    <a href="history.html">history</a>
+    <a href="./">the table</a>
+  </nav>
+</div>
 
+<div class="page">
+  <div class="hero">
+    <span class="crest" aria-hidden="true"><i></i><b></b></span>
+    <h1>The <b>floor</b></h1>
+  </div>
+  <p class="sub">Every table, one page. Venues beat a signed heartbeat while their service
+  lives; the trainers need no server at all. Dealt by
+  <a href="https://github.com/libre-poker/croupier">the croupier</a>, proven in your browser.</p>
+
+  <h2 class="lbl">VENUES</h2>
+  <div id="venues"></div>
+
+  <h2 class="lbl">OPEN ROOMS</h2>
   <div class="make">
     <input id="name" maxlength="40" placeholder="table name (optional)">
     <button id="create">CREATE TABLE</button>
   </div>
+  <div id="rooms-wrap">
+    <div id="list"></div>
+    <div id="empty" style="display:none">No open rooms — create the first one.</div>
+  </div>
 
-  <h2>THE VENUES</h2>
-  <div id="venues"></div>
-
-  <h2 style="margin-top:26px">OPEN TABLES</h2>
-  <div id="list"></div>
-  <div id="empty" style="display:none">No open tables — create the first one.</div>
-
-  <div class="foot">Venues are signed Table documents in the
-  <a href="ledger.html">public archive</a>, refreshed as heartbeats by whoever keeps each
-  table's service alive — anyone can announce one; the signature says who stands behind it.
-  A room below stays listed for a day. Share
-  <code>?join=CODE</code> links to invite directly; a 🤖 bot can be summoned
-  from inside any table while you wait.</div>
+  <div class="foot lbl">Venues are signed Table documents in the
+  <a href="ledger.html">public archive</a>, refreshed as heartbeats by whoever keeps each table's
+  service alive — anyone may announce one; the signature says who stands behind it. Rooms stay
+  listed for a day; share <code>?join=CODE</code> links to invite directly, and a 🤖 bot can be
+  summoned from inside any room.</div>
 </div>
 
 <script>
 const CROUPIER = new URLSearchParams(location.search).get('server') || 'https://melvin.me/croupier';
 const $ = (q) => document.querySelector(q);
+const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const age = (ms) => ms < 90000 ? Math.round(ms / 1000) + 's' : ms < 5400000 ? Math.round(ms / 60000) + 'm' : Math.round(ms / 3600000) + 'h';
 
+// ---- venues: signed heartbeats plus the serverless always-open tables
+const FRESH = 15 * 60 * 1000;
+const STATIC_VENUES = [
+  { name: 'The table', url: './', stakes: "limit hold'em · 10/20 · rated ladder",
+    why: 'Seven measured levels, Glicko-2, drill clock. Practice runs entirely in your browser.' },
+  { name: 'The NL trainer', url: 'nl.html', stakes: 'no-limit · 10/20 · 100bb',
+    why: 'Heads-up against the 49.8M-iteration brain — it grades every decision against its own mix.' },
+];
+const crest = '<span class="crest" aria-hidden="true"><i></i><b></b></span>';
+async function venues() {
+  let rows = [];
+  try {
+    const r = await fetch(CROUPIER + '/archive?type=Table&limit=50').then((x) => x.json());
+    rows = (r.hands || []).sort((a, b) => b.t - a.t);
+  } catch { /* archive down: statics still render */ }
+  const announced = rows.map((r) => {
+    const d = r.doc, ago = Date.now() - r.t, live = ago < FRESH;
+    const url = /^https:\/\//.test(d.url || '') ? d.url : '#';
+    const host = String(d.host || r.submitter);
+    return `<a class="venue${live ? '' : ' dim'}" href="${esc(url)}">
+      ${crest}
+      <span class="mid">
+        <div class="nm">${esc(d.name || d.root)}</div>
+        <div class="stakes lbl">${esc(d.stakes || d.game || '')}</div>
+        <div class="why lbl">${esc(d.note || '')}${d.seats ? ' — ' + esc(d.seats) : ''}</div>
+        <div class="host" title="${esc(host)}">host ${esc(host.slice(0, 24))}…${esc(host.slice(-6))}</div>
+      </span>
+      <span class="side">
+        <span class="badge lbl ${live ? 'live' : 'stale'}"><span class="dot"></span>${live ? 'live' : 'stale'}&nbsp;<small>${age(ago)}</small></span>
+        <span class="cta lbl">SIT</span>
+      </span>
+    </a>`;
+  });
+  const statics = STATIC_VENUES.map((v) => `<a class="venue" href="${esc(v.url)}">
+      ${crest}
+      <span class="mid">
+        <div class="nm">${esc(v.name)}</div>
+        <div class="stakes lbl">${esc(v.stakes)}</div>
+        <div class="why lbl">${esc(v.why)}</div>
+      </span>
+      <span class="side">
+        <span class="badge lbl open"><span class="dot"></span>always open</span>
+        <span class="cta lbl">SIT</span>
+      </span>
+    </a>`);
+  $('#venues').innerHTML = announced.join('') + statics.join('');
+}
+venues();
+setInterval(venues, 60000);
+
+// ---- open rooms: fresh ones lead and glow; the old tail stays honest and quiet
 async function refresh() {
   try {
     const r = await fetch(CROUPIER + '/room/list').then((x) => x.json());
     const rows = (r.rooms || []).map((t) => {
-      const age = Math.max(0, Math.round((Date.now() - t.createdAt) / 60000));
-      return `<div class="table-row">
-        <div><div class="nm">${(t.name || 'table').replace(/[<>&]/g, '')}</div>
-        <div class="code">${t.room}</div></div>
-        <div class="info">${t.listeners} listening · ${age}m old</div>
+      const ms = Math.max(0, Date.now() - t.createdAt);
+      const fresh = ms < 30 * 60 * 1000;
+      return `<div class="room${fresh ? ' fresh' : ''}">
+        <span class="code">${esc(t.room)}</span>
+        <span class="nm">${esc(t.name || 'table')}</span>
+        <span class="meta lbl">${age(ms)} old${t.msgs ? ' · ' + t.msgs + ' msgs' : ' · unplayed'}</span>
         <span class="spacer"></span>
-        <a href="./?join=${t.room}">JOIN</a>
+        <a class="lbl" href="./?join=${esc(t.room)}">JOIN</a>
       </div>`;
     });
     $('#list').innerHTML = rows.join('');
@@ -120,48 +283,6 @@ $('#create').addEventListener('click', async () => {
 });
 refresh();
 setInterval(refresh, 5000);
-
-// ---- the venues: signed Table heartbeats from each table's host, plus the
-// serverless tables that cannot die. Stale hearts show honestly — an honest
-// lobby never sells a seat at a dead table.
-const FRESH = 15 * 60 * 1000;
-const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const age = (ms) => ms < 90000 ? Math.round(ms / 1000) + 's' : ms < 5400000 ? Math.round(ms / 60000) + 'm' : Math.round(ms / 3600000) + 'h';
-const STATIC_VENUES = [
-  { name: 'The table', url: './', game: 'limit hold\'em · 10/20 · rated ladder',
-    why: 'Seven measured levels, Glicko-2, drill clock. Practice runs entirely in your browser.' },
-  { name: 'The NL trainer', url: 'nl.html', game: 'no-limit · 10/20 · 100bb',
-    why: 'Heads-up against the 49.8M-iteration brain — it grades every decision against its own mix.' },
-];
-async function venues() {
-  let rows = [];
-  try {
-    const r = await fetch(CROUPIER + '/archive?type=Table&limit=50').then((x) => x.json());
-    rows = (r.hands || []).sort((a, b) => b.t - a.t);
-  } catch { /* archive down: statics still render */ }
-  const announced = rows.map((r) => {
-    const d = r.doc, ago = Date.now() - r.t, live = ago < FRESH;
-    const url = /^https:\/\//.test(d.url || '') ? d.url : '#';
-    return `<div class="table-row venue" ${live ? '' : 'style="opacity:.55"'}>
-      <div><div class="nm">${esc(d.name || d.root)} <span class="code">${esc(d.stakes || '')}</span></div>
-      <div class="why">${esc(d.note || '')}${d.seats ? ' — ' + esc(d.seats) : ''}</div>
-      <div class="host">host ${esc(d.host || r.submitter)}</div></div>
-      <span class="spacer"></span>
-      <span class="badge ${live ? 'live' : 'stale'}">${live ? 'live · ' + age(ago) : 'stale · ' + age(ago)}</span>
-      <a href="${esc(url)}">SIT</a>
-    </div>`;
-  });
-  const statics = STATIC_VENUES.map((v) => `<div class="table-row venue">
-      <div><div class="nm">${esc(v.name)} <span class="code">${esc(v.game)}</span></div>
-      <div class="why">${esc(v.why)}</div></div>
-      <span class="spacer"></span>
-      <span class="badge open">always open</span>
-      <a href="${esc(v.url)}">SIT</a>
-    </div>`);
-  document.getElementById('venues').innerHTML = announced.join('') + statics.join('');
-}
-venues();
-setInterval(venues, 60000);
 </script>
 </body>
 </html>
