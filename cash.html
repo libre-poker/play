@@ -460,7 +460,7 @@ const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest('SH
 
 // ---- strategy (the citizen's brain, played locally)
 caption('fetching the strategy…');
-const T = await fetch('strategy-hulimit.json?v=17').then((r) => r.json());
+const T = await fetch('strategy-hulimit.json?v=18').then((r) => r.json());
 if (T.edges) setEquityEdges(T.edges);
 caption('');
 
