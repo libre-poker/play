@@ -1,5 +1,7 @@
 # Libre Poker · play
 
+[![Mind map](https://mindstr.org/badge.svg)](https://mindstr.org/?uri=https://librepoker.org/play/mindstr/index.jsonld)
+
 **https://librepoker.org/play/** — heads-up fixed-limit hold'em against a
 near-unexploitable trainer: solved preflop (Cepheus), trained middle
 streets, every river solved exactly as you play it.
