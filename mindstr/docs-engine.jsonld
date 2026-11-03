@@ -21,8 +21,8 @@
     {
       "@id": "#ab9ysn",
       "name": "Vendored from libre-poker/eng…",
-      "x": 217,
-      "y": 106,
+      "x": 199,
+      "y": 98,
       "link": "https://github.com/libre-poker/play/blob/gh-pages/engine/VENDORED.md#vendored-from-libre-pokerengine-engine",
       "bgColor": "#acd5ff",
       "parent": "#this"
@@ -30,8 +30,8 @@
     {
       "@id": "#qhtzie",
       "name": "← play",
-      "x": -217,
-      "y": -106,
+      "x": -199,
+      "y": -98,
       "link": "./index.jsonld",
       "bgColor": "#ececec",
       "parent": "#this"

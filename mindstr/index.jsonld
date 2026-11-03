@@ -20,147 +20,138 @@
     },
     {
       "@id": "#2sgmjt",
-      "name": "engine · 1 ›",
-      "x": 224,
-      "y": -95,
-      "link": "./docs-engine.jsonld",
+      "name": "Live site",
+      "x": 230,
+      "y": 2,
+      "link": "https://librepoker.org/play/",
       "bgColor": "#acd5ff",
       "parent": "#this"
     },
     {
       "@id": "#j9h6ge",
-      "name": "Source · 4 files",
-      "x": -121,
-      "y": 186,
-      "link": "https://github.com/libre-poker/play/tree/gh-pages",
-      "bgColor": "#febdc6",
-      "parent": "#this"
+      "name": "https://librepoker.org/play/ — heads-up fixed-limit…",
+      "x": 387,
+      "y": -159,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#daeeff",
+      "parent": "#2sgmjt"
     },
     {
       "@id": "#ejt2c7",
-      "name": "app.js",
-      "x": 406,
-      "y": 248,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/app.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#j9h6ge"
+      "name": "librepoker.org/play",
+      "x": 425,
+      "y": 58,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#daeeff",
+      "parent": "#2sgmjt"
     },
     {
       "@id": "#tvx8v7",
-      "name": "bot.js",
-      "x": 321,
-      "y": 421,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/bot.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#j9h6ge"
+      "name": "since Aug 2026 · last 3 Oct 2026",
+      "x": 350,
+      "y": 212,
+      "link": "https://github.com/libre-poker/play/commits/gh-pages",
+      "bgColor": "#ececec",
+      "parent": "#2sgmjt"
     },
     {
       "@id": "#4bfmpa",
-      "name": "croupier-verify.js · 16",
-      "x": -319,
-      "y": 327,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#j9h6ge"
+      "name": "Page",
+      "x": -60,
+      "y": 189,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#f3bee1",
+      "parent": "#this"
     },
     {
       "@id": "#c2mpq8",
-      "name": "hexToBytes()",
-      "x": 65,
-      "y": 635,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
+      "name": "Scorecard",
+      "x": 95,
+      "y": 356,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#fce3f3",
       "parent": "#4bfmpa"
     },
     {
       "@id": "#yykmee",
-      "name": "bytesToHex()",
-      "x": -145,
-      "y": 703,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
+      "name": "Hand 📋 text { } json",
+      "x": -53,
+      "y": 423,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#fce3f3",
       "parent": "#4bfmpa"
     },
     {
       "@id": "#7kgwkb",
-      "name": "asciiBytes()",
-      "x": -315,
-      "y": 579,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
+      "name": "Play a friend",
+      "x": -181,
+      "y": 331,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#fce3f3",
       "parent": "#4bfmpa"
     },
     {
       "@id": "#x7t4w7",
-      "name": "concatBytes()",
-      "x": -537,
-      "y": 549,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
+      "name": "The room",
+      "x": -341,
+      "y": 311,
+      "link": "https://librepoker.org/play/",
+      "bgColor": "#fce3f3",
       "parent": "#4bfmpa"
     },
     {
       "@id": "#dsw684",
-      "name": "sha256bytes()",
-      "x": -611,
-      "y": 369,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#4bfmpa"
-    },
-    {
-      "@id": "#v88t4a",
-      "name": "sha256hex()",
-      "x": -787,
-      "y": 250,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#4bfmpa"
-    },
-    {
-      "@id": "#skzt29",
-      "name": "hmacSha256()",
-      "x": -746,
-      "y": 62,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#4bfmpa"
-    },
-    {
-      "@id": "#t4pwzt",
-      "name": "test-online.js",
-      "x": -545,
-      "y": -191,
-      "link": "https://github.com/libre-poker/play/blob/gh-pages/test-online.js",
-      "bgColor": "#ffe2e6",
-      "parent": "#j9h6ge"
-    },
-    {
-      "@id": "#jhaa84",
-      "name": "Play Libre Poker — the heads-up trainer at…",
-      "x": -20,
-      "y": -212,
-      "link": "https://github.com/libre-poker/play",
-      "bgColor": "#ececec",
+      "name": "engine · 1 ›",
+      "x": -230,
+      "y": 2,
+      "link": "./docs-engine.jsonld",
+      "bgColor": "#f1c99c",
       "parent": "#this"
     },
     {
-      "@id": "#wavvy9",
-      "name": "since Aug 2026 · last 3 Oct 2026",
-      "x": -137,
-      "y": -409,
-      "link": "https://github.com/libre-poker/play/commits/gh-pages",
-      "bgColor": "#ececec",
-      "parent": "#jhaa84"
+      "@id": "#v88t4a",
+      "name": "Source · 4 files",
+      "x": -59,
+      "y": -189,
+      "link": "https://github.com/libre-poker/play/tree/gh-pages",
+      "bgColor": "#a6e1c0",
+      "parent": "#this"
     },
     {
-      "@id": "#i9w3v4",
-      "name": "librepoker.org/play",
-      "x": 133,
-      "y": -489,
-      "link": "http://librepoker.org/play/",
-      "bgColor": "#ececec",
-      "parent": "#jhaa84"
+      "@id": "#skzt29",
+      "name": "app.js",
+      "x": -297,
+      "y": -264,
+      "link": "https://github.com/libre-poker/play/blob/gh-pages/app.js",
+      "bgColor": "#d8f3e3",
+      "parent": "#v88t4a"
+    },
+    {
+      "@id": "#t4pwzt",
+      "name": "bot.js",
+      "x": -216,
+      "y": -383,
+      "link": "https://github.com/libre-poker/play/blob/gh-pages/bot.js",
+      "bgColor": "#d8f3e3",
+      "parent": "#v88t4a"
+    },
+    {
+      "@id": "#jhaa84",
+      "name": "croupier-verify.js · 16",
+      "x": -44,
+      "y": -364,
+      "link": "https://github.com/libre-poker/play/blob/gh-pages/croupier-verify.js",
+      "bgColor": "#d8f3e3",
+      "parent": "#v88t4a"
+    },
+    {
+      "@id": "#wavvy9",
+      "name": "test-online.js",
+      "x": 119,
+      "y": -413,
+      "link": "https://github.com/libre-poker/play/blob/gh-pages/test-online.js",
+      "bgColor": "#d8f3e3",
+      "parent": "#v88t4a"
     }
   ],
   "connections": [
@@ -169,19 +160,19 @@
       "end": 1
     },
     {
-      "start": 0,
+      "start": 1,
       "end": 2
     },
     {
-      "start": 2,
+      "start": 1,
       "end": 3
     },
     {
-      "start": 2,
+      "start": 1,
       "end": 4
     },
     {
-      "start": 2,
+      "start": 0,
       "end": 5
     },
     {
@@ -201,32 +192,28 @@
       "end": 9
     },
     {
-      "start": 5,
+      "start": 0,
       "end": 10
     },
     {
-      "start": 5,
+      "start": 0,
       "end": 11
     },
     {
-      "start": 5,
+      "start": 11,
       "end": 12
     },
     {
-      "start": 2,
+      "start": 11,
       "end": 13
     },
     {
-      "start": 0,
+      "start": 11,
       "end": 14
     },
     {
-      "start": 14,
+      "start": 11,
       "end": 15
-    },
-    {
-      "start": 14,
-      "end": 16
     }
   ],
   "selectedNode": 0
