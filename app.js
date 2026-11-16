@@ -98,6 +98,8 @@ if (rating.r < 2000 && !rating.era2500) { rating.r += 1000; rating.era2500 = tru
 
 let table = null;                 // the champion strategy
 let h = null;                     // live engine hand
+// read-only window onto the live hand for the hand ladder (hud.js); nothing here can change the game
+window.__lp = { get hand() { return h; }, get table() { return table; }, get level() { return level; }, get heroSeat() { return HERO_SEAT; } };
 let handNo = 0;                   // 1-based, this session/match
 let heroResolve = null;
 let liveL = null, liveMark = null;   // the decision currently on the buttons
