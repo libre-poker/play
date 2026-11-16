@@ -435,10 +435,10 @@ a{color:#5fc7d6}
   </div>
 </div></div>
 
-<script type="module" src="app.js?v=36"></script>
+<script type="module" src="app.js?v=37"></script>
 <script type="module">
 // The ladder loads only when asked for: the 📊 chip, ?ladder in the address, or a remembered choice.
-const openLadder = (force) => import('./hud.js?v=4').then((m) => m.toggle(force));
+const openLadder = (force) => import('./hud.js?v=5').then((m) => m.toggle(force));
 document.getElementById('b-ladder').addEventListener('click', () => openLadder());
 let want = new URLSearchParams(location.search).has('ladder');
 try { want = want || localStorage.getItem('lp.ladder') === '1'; } catch { /* private window */ }
